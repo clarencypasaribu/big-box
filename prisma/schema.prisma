@@ -1,0 +1,26 @@
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model Profile {
+  id        String   @id @db.Uuid
+  email     String   @map("email")
+  fullName  String?  @map("full_name")
+  firstName String?  @map("first_name")
+  lastName  String?  @map("last_name")
+  phone     String?  @map("phone")
+  position  String?  @map("position")
+  role      String?  @map("role")
+  avatarUrl String?  @map("avatar_url")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @default(now()) @map("updated_at") @db.Timestamptz(6)
+
+  @@map("profiles")
+}
