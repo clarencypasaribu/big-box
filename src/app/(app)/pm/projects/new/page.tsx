@@ -2,6 +2,8 @@ import Link from "next/link";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { SidebarProfile } from "@/components/sidebar-profile";
+import { getCurrentUserProfile } from "@/utils/current-user";
 
 const navItems = [
   { label: "Dashboard", href: "/pm/dashboard" },
@@ -21,7 +23,8 @@ const roles = [
   { name: "Yash", title: "Team lead", assigned: false },
 ];
 
-export default function PMNewProjectPage() {
+export default async function PMNewProjectPage() {
+  const profile = await getCurrentUserProfile();
   return (
     <div className="min-h-screen bg-[#f7f7f9] text-slate-900">
       <div className="mx-auto flex max-w-screen-2xl gap-6 px-4 py-8 lg:px-8">
@@ -48,15 +51,7 @@ export default function PMNewProjectPage() {
             </nav>
           </div>
 
-          <div className="flex items-center gap-3 rounded-lg bg-slate-50 px-3 py-3">
-            <div className="grid size-10 place-items-center rounded-full bg-indigo-100 text-indigo-700">
-              AM
-            </div>
-            <div className="flex-1 leading-tight">
-              <p className="text-sm font-semibold text-slate-900">Amel</p>
-              <p className="text-xs text-slate-500">Bigbox Workspace</p>
-            </div>
-          </div>
+          <SidebarProfile profile={profile} />
         </aside>
 
         <main className="flex-1 space-y-6">

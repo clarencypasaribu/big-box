@@ -53,7 +53,7 @@ export default function LoginPage() {
       return;
     }
 
-    const role = rawRole;
+    const role: "project_manager" | "team_member" = rawRole;
 
     const { error: profileError } = await supabase
       .from("profiles")
@@ -74,7 +74,7 @@ export default function LoginPage() {
       return;
     }
 
-    const destination = roleToPath[role as "project_manager" | "team_member"] ?? "/member/dashboard";
+    const destination = roleToPath[role] ?? "/member/dashboard";
     router.push(destination);
   }
 

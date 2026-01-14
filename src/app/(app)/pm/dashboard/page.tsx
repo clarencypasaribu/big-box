@@ -13,7 +13,6 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -25,6 +24,8 @@ import {
 import { Input } from "@/components/ui/input";
 import { Separator } from "@/components/ui/separator";
 import { cn } from "@/lib/utils";
+import { SidebarProfile } from "@/components/sidebar-profile";
+import { getCurrentUserProfile } from "@/utils/current-user";
 
 type StageData = {
   stage: string;
@@ -81,7 +82,8 @@ const notifications: Notification[] = [
   },
 ];
 
-export default function PMDashboardPage() {
+export default async function PMDashboardPage() {
+  const profile = await getCurrentUserProfile();
   const maxStageValue = Math.max(...stageData.map((stage) => stage.value));
 
   return (
@@ -120,17 +122,7 @@ export default function PMDashboardPage() {
             </nav>
           </div>
 
-          <div className="flex items-center gap-3 rounded-lg bg-slate-50 px-3 py-3">
-            <Avatar className="size-10 border border-slate-200">
-              <AvatarFallback className="bg-slate-200 text-sm font-semibold text-slate-800">
-                AM
-              </AvatarFallback>
-            </Avatar>
-            <div className="flex-1 leading-tight">
-              <p className="text-sm font-semibold text-slate-900">Amel</p>
-              <p className="text-xs text-slate-500">Bigbox Workspace</p>
-            </div>
-          </div>
+          <SidebarProfile profile={profile} />
         </aside>
 
         <main className="flex-1 space-y-6">

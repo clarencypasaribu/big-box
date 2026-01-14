@@ -1,3 +1,4 @@
+-- 001_profiles.sql
 DROP TABLE IF EXISTS public.profiles CASCADE;
 
 CREATE TABLE public.profiles (
@@ -32,7 +33,8 @@ WITH CHECK (auth.uid() = id);
 DROP POLICY IF EXISTS profiles_update_own ON public.profiles;
 CREATE POLICY profiles_update_own
 ON public.profiles FOR UPDATE
-USING (auth.uid() = id);
+USING (auth.uid() = id)
+WITH CHECK (auth.uid() = id);
 
 CREATE OR REPLACE FUNCTION public.set_updated_at()
 RETURNS trigger AS $$
@@ -51,25 +53,17 @@ CREATE OR REPLACE FUNCTION public.handle_new_user()
 RETURNS trigger AS $$
 BEGIN
   INSERT INTO public.profiles (
-    id,
-    email,
-    full_name,
-    first_name,
-    last_name,
-    phone,
-    position,
-    role,
-    avatar_url
+    id, email, full_name, first_name, last_name, phone, position, role, avatar_url
   )
   VALUES (
     NEW.id,
     NEW.email,
-    COALESCE(NEW.raw_user_meta_data->>'full_name', ''),
-    COALESCE(NEW.raw_user_meta_data->>'first_name', ''),
-    COALESCE(NEW.raw_user_meta_data->>'last_name', ''),
+    COALESCE(NEW.raw_user_meta_data->>'name', NEW.email),
+    COALESCE(NEW.raw_user_meta_data->>'firstName', ''),
+    COALESCE(NEW.raw_user_meta_data->>'lastName', ''),
     COALESCE(NEW.raw_user_meta_data->>'phone', ''),
     COALESCE(NEW.raw_user_meta_data->>'position', ''),
-    NEW.raw_user_meta_data->>'role',
+    COALESCE(NEW.raw_user_meta_data->>'role', 'team_member'),
     COALESCE(NEW.raw_user_meta_data->>'avatar_url', '')
   )
   ON CONFLICT (id) DO NOTHING;
