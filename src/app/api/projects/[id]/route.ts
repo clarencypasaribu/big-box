@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 
-import { createSupabaseAdminClient } from "../../../../utils/supabase-admin";
+import { createSupabaseServiceClient } from "../../../../utils/supabase-service";
 import { createSupabaseServerClient } from "../../../../utils/supabase-server";
 
 function getBearerToken(request: Request) {
@@ -13,9 +13,11 @@ function getBearerToken(request: Request) {
 async function getUserId(request: Request) {
   const token = getBearerToken(request);
   if (token) {
-    const supabaseAdmin = createSupabaseAdminClient();
-    const { data, error } = await supabaseAdmin.auth.getUser(token);
-    if (!error && data.user?.id) return data.user.id;
+    if (process.env.NEXT_PUBLIC_SUPABASE_URL && process.env.SUPABASE_SERVICE_ROLE_KEY) {
+      const supabaseAdmin = await createSupabaseServiceClient();
+      const { data, error } = await supabaseAdmin.auth.getUser(token);
+      if (!error && data.user?.id) return data.user.id;
+    }
   }
 
   try {
@@ -57,7 +59,7 @@ export async function PUT(request: NextRequest, context: { params: Promise<{ id:
       return NextResponse.json({ message: "Nama project wajib diisi" }, { status: 400 });
     }
 
-    const supabase = createSupabaseAdminClient();
+    const supabase = await createSupabaseServiceClient();
     const { data, error } = await supabase
       .from("projects")
       .update(payload)
@@ -92,7 +94,7 @@ export async function DELETE(request: NextRequest, context: { params: Promise<{ 
       return NextResponse.json({ message: "Harus login untuk hapus project" }, { status: 401 });
     }
 
-    const supabase = createSupabaseAdminClient();
+    const supabase = await createSupabaseServiceClient();
     const { error } = await supabase
       .from("projects")
       .delete()

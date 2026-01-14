@@ -1,4 +1,4 @@
-import { createSupabaseServerClient } from "../../utils/supabase-server";
+import { createSupabaseServerClient } from "./supabase-server";
 
 export type SidebarProfileData = {
   id: string | null;

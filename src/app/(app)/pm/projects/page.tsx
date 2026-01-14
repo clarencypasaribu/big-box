@@ -4,7 +4,7 @@ import Link from "next/link";
 import { ProjectsClient, type ProjectRow } from "@/app/(app)/pm/projects/projects-client";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { createSupabaseAdminClient } from "@/utils/supabase-admin";
+import { createSupabaseServiceClient } from "@/utils/supabase-service";
 
 type Stat = {
   label: string;
@@ -21,7 +21,7 @@ const stats: Stat[] = [
 
 async function loadProjects(): Promise<ProjectRow[]> {
   try {
-    const supabase = createSupabaseAdminClient();
+    const supabase = await createSupabaseServiceClient();
     const { data, error } = await supabase
       .from("projects")
       .select("id,name,code,location,status,progress,lead,icon_bg,description,updated_at,created_at")
@@ -110,9 +110,7 @@ export default async function PMProjectsPage() {
               <h1 className="text-3xl font-semibold text-slate-900">Project Management</h1>
               <p className="text-slate-600">CRUD projects langsung dari halaman ini.</p>
             </div>
-            <Button asChild className="h-11 bg-[#256eff] text-white hover:bg-[#1c55c7]">
-              <Link href="/pm/projects/new">+ New Project</Link>
-            </Button>
+            <div aria-hidden className="h-11" />
           </div>
 
           <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">

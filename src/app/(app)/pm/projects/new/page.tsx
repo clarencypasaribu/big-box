@@ -1,9 +1,8 @@
 import Link from "next/link";
 
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { SidebarProfile } from "@/components/sidebar-profile";
 import { getCurrentUserProfile } from "@/utils/current-user";
+import { ProjectCreateForm } from "./project-form";
 
 const navItems = [
   { label: "Dashboard", href: "/pm/dashboard" },
@@ -11,16 +10,6 @@ const navItems = [
   { label: "Approvals", href: "/pm/approvals" },
   { label: "Risks & Blockers", href: "/pm/risks" },
   { label: "Users", href: "/pm/users" },
-];
-
-const roles = [
-  { name: "Yash", title: "Team lead", assigned: true },
-  { name: "Yash", title: "Team lead", assigned: false },
-  { name: "Yash", title: "Team lead", assigned: false },
-  { name: "Yash", title: "Team lead", assigned: false },
-  { name: "Yash", title: "Team lead", assigned: false },
-  { name: "Yash", title: "Team lead", assigned: false },
-  { name: "Yash", title: "Team lead", assigned: false },
 ];
 
 export default async function PMNewProjectPage() {
@@ -61,78 +50,7 @@ export default async function PMNewProjectPage() {
           </div>
 
           <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-            <div className="space-y-4">
-              <div className="space-y-2">
-                <label className="text-sm font-semibold text-slate-800" htmlFor="title">
-                  Project Title
-                </label>
-                <Input id="title" name="title" placeholder="Nama proyek" className="h-11" />
-              </div>
-
-              <div className="space-y-2">
-                <label className="text-sm font-semibold text-slate-800" htmlFor="description">
-                  Project Description
-                </label>
-                <textarea
-                  id="description"
-                  name="description"
-                  placeholder="Deskripsikan tujuan proyek..."
-                  className="min-h-[120px] w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 shadow-sm outline-none focus:border-indigo-400 focus:ring-4 focus:ring-indigo-100"
-                />
-              </div>
-
-              <div className="grid gap-4 lg:grid-cols-[1.5fr,1fr]">
-                <div className="space-y-2">
-                  <label className="text-sm font-semibold text-slate-800">Project Roles</label>
-                  <div className="rounded-xl border border-slate-200 shadow-sm">
-                    <div className="flex items-center justify-between border-b border-slate-200 px-3 py-2 text-sm font-semibold text-slate-700">
-                      <span>Team Lead</span>
-                      <span className="text-slate-400">▼</span>
-                    </div>
-                    <div className="divide-y divide-slate-200">
-                      {roles.map((role, idx) => (
-                        <label
-                          key={`${role.name}-${idx}`}
-                          className="flex items-center gap-3 px-3 py-2 text-sm text-slate-700"
-                        >
-                          <span className="flex-1">
-                            {role.name}{" "}
-                            <span className="text-slate-400 italic">{role.title}</span>
-                          </span>
-                          <input
-                            type="checkbox"
-                            defaultChecked={role.assigned}
-                            className="size-4 rounded border-slate-300 text-indigo-600"
-                          />
-                        </label>
-                      ))}
-                    </div>
-                  </div>
-                </div>
-
-                <div className="grid gap-4 md:grid-cols-2">
-                  <div className="space-y-2">
-                    <label className="text-sm font-semibold text-slate-800" htmlFor="startDate">
-                      Start Date
-                    </label>
-                    <Input id="startDate" name="startDate" type="date" className="h-11" />
-                  </div>
-                  <div className="space-y-2">
-                    <label className="text-sm font-semibold text-slate-800" htmlFor="endDate">
-                      End Date
-                    </label>
-                    <Input id="endDate" name="endDate" type="date" className="h-11" />
-                  </div>
-                </div>
-              </div>
-
-              <div className="flex items-center justify-end gap-3 pt-4">
-                <Button variant="ghost" asChild>
-                  <Link href="/pm/projects">Cancel</Link>
-                </Button>
-                <Button className="bg-[#256eff] text-white hover:bg-[#1c55c7]">Create</Button>
-              </div>
-            </div>
+            <ProjectCreateForm />
           </div>
         </main>
       </div>

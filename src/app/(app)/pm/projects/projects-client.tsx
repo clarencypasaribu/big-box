@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Loader2, Pencil, Plus, Trash2 } from "lucide-react";
+import { Eye, Loader2, MoreHorizontal, Pencil, Plus, Trash2 } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -22,6 +22,12 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { supabase } from "@/utils/supabase";
 
 export type ProjectRow = {
@@ -93,6 +99,7 @@ export function ProjectsClient({ initialProjects }: { initialProjects: ProjectRo
   const [loading, setLoading] = useState(!initialProjects.length);
   const [error, setError] = useState<string | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [dialogMode, setDialogMode] = useState<"create" | "edit" | "view">("create");
   const [saving, setSaving] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [editId, setEditId] = useState<string | null>(null);
@@ -106,7 +113,9 @@ export function ProjectsClient({ initialProjects }: { initialProjects: ProjectRo
     description: "",
   });
 
-  const dialogTitle = editId ? "Edit Project" : "Add Project";
+  const dialogTitle =
+    dialogMode === "create" ? "Add Project" : dialogMode === "edit" ? "Edit Project" : "Project Details";
+  const isViewMode = dialogMode === "view";
 
   useEffect(() => {
     if (!initialProjects.length) {
@@ -148,6 +157,7 @@ export function ProjectsClient({ initialProjects }: { initialProjects: ProjectRo
 
   function openCreateDialog() {
     setEditId(null);
+    setDialogMode("create");
     setForm({
       name: "",
       code: "",
@@ -163,6 +173,23 @@ export function ProjectsClient({ initialProjects }: { initialProjects: ProjectRo
 
   function openEditDialog(project: ProjectRow) {
     setEditId(project.id ?? null);
+    setDialogMode("edit");
+    setForm({
+      name: project.name || "",
+      code: project.code || "",
+      location: project.location || "",
+      status: project.status,
+      progress: project.progress ?? 0,
+      lead: project.lead || "",
+      description: project.description || "",
+    });
+    setDialogOpen(true);
+    setError(null);
+  }
+
+  function openViewDialog(project: ProjectRow) {
+    setEditId(project.id ?? null);
+    setDialogMode("view");
     setForm({
       name: project.name || "",
       code: project.code || "",
@@ -327,29 +354,45 @@ export function ProjectsClient({ initialProjects }: { initialProjects: ProjectRo
                 </TableCell>
                 <TableCell className="text-slate-600">{formatDate(project.updated)}</TableCell>
                 <TableCell className="text-center text-slate-600">
-                  <div className="flex items-center justify-center gap-2">
-                    <button
-                      type="button"
-                      className="rounded-md p-2 hover:bg-slate-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
-                      aria-label={`Edit ${project.name}`}
-                      onClick={() => openEditDialog(project)}
-                    >
-                      <Pencil className="size-4" />
-                    </button>
-                    <button
-                      type="button"
-                      className="rounded-md p-2 text-rose-600 hover:bg-rose-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring focus-visible:outline-rose-200"
-                      aria-label={`Delete ${project.name}`}
-                      onClick={() => handleDelete(project.id)}
-                      disabled={deletingId === project.id}
-                    >
-                      {deletingId === project.id ? (
-                        <Loader2 className="size-4 animate-spin" />
-                      ) : (
-                        <Trash2 className="size-4" />
-                      )}
-                    </button>
-                  </div>
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <button
+                        type="button"
+                        className="rounded-md p-2 hover:bg-slate-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+                        aria-label={`Actions for ${project.name}`}
+                      >
+                        <MoreHorizontal className="size-4" />
+                      </button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end" className="w-44">
+                      <DropdownMenuItem
+                        className="gap-2"
+                        onClick={() => openViewDialog(project)}
+                      >
+                        <Eye className="size-4" />
+                        Details
+                      </DropdownMenuItem>
+                      <DropdownMenuItem
+                        className="gap-2"
+                        onClick={() => openEditDialog(project)}
+                      >
+                        <Pencil className="size-4" />
+                        Edit
+                      </DropdownMenuItem>
+                      <DropdownMenuItem
+                        className="gap-2 text-rose-600 focus:text-rose-700"
+                        onClick={() => handleDelete(project.id)}
+                        disabled={deletingId === project.id}
+                      >
+                        {deletingId === project.id ? (
+                          <Loader2 className="size-4 animate-spin" />
+                        ) : (
+                          <Trash2 className="size-4" />
+                        )}
+                        Delete
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
                 </TableCell>
               </TableRow>
             ))
@@ -386,6 +429,7 @@ export function ProjectsClient({ initialProjects }: { initialProjects: ProjectRo
                   onChange={(e) => setForm((prev) => ({ ...prev, name: e.target.value }))}
                   placeholder="Project Alpha"
                   required
+                  disabled={isViewMode}
                 />
               </div>
               <div className="space-y-2">
@@ -396,6 +440,7 @@ export function ProjectsClient({ initialProjects }: { initialProjects: ProjectRo
                   value={form.code}
                   onChange={(e) => setForm((prev) => ({ ...prev, code: e.target.value }))}
                   placeholder="PRJ-001"
+                  disabled={isViewMode}
                 />
               </div>
               <div className="space-y-2">
@@ -406,6 +451,7 @@ export function ProjectsClient({ initialProjects }: { initialProjects: ProjectRo
                   value={form.location}
                   onChange={(e) => setForm((prev) => ({ ...prev, location: e.target.value }))}
                   placeholder="Remote / Jakarta / Singapore"
+                  disabled={isViewMode}
                 />
               </div>
             </div>
@@ -421,6 +467,7 @@ export function ProjectsClient({ initialProjects }: { initialProjects: ProjectRo
                   onChange={(e) =>
                     setForm((prev) => ({ ...prev, status: e.target.value as ProjectRow["status"] }))
                   }
+                  disabled={isViewMode}
                 >
                   {statusOptions.map((status) => (
                     <option key={status} value={status}>
@@ -442,6 +489,7 @@ export function ProjectsClient({ initialProjects }: { initialProjects: ProjectRo
                     setForm((prev) => ({ ...prev, progress: Number(e.target.value) || 0 }))
                   }
                   placeholder="0 - 100"
+                  disabled={isViewMode}
                 />
               </div>
             </div>
@@ -455,6 +503,7 @@ export function ProjectsClient({ initialProjects }: { initialProjects: ProjectRo
                   value={form.lead}
                   onChange={(e) => setForm((prev) => ({ ...prev, lead: e.target.value }))}
                   placeholder="Nama PIC"
+                  disabled={isViewMode}
                 />
               </div>
               <div className="space-y-2 sm:col-span-2">
@@ -466,22 +515,25 @@ export function ProjectsClient({ initialProjects }: { initialProjects: ProjectRo
                   onChange={(e) => setForm((prev) => ({ ...prev, description: e.target.value }))}
                   className="min-h-[90px] w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 shadow-sm outline-none focus:border-indigo-500 focus:ring-4 focus:ring-indigo-100"
                   placeholder="Deskripsi singkat..."
+                  disabled={isViewMode}
                 />
               </div>
             </div>
 
             <div className="flex items-center justify-end gap-3 pt-2">
               <Button variant="ghost" type="button" onClick={() => setDialogOpen(false)}>
-                Cancel
+                {isViewMode ? "Close" : "Cancel"}
               </Button>
-              <Button
-                className="bg-[#256eff] text-white hover:bg-[#1c55c7]"
-                type="submit"
-                disabled={saving}
-              >
-                {saving ? <Loader2 className="mr-2 size-4 animate-spin" /> : null}
-                {editId ? "Save Changes" : "Create Project"}
-              </Button>
+              {isViewMode ? null : (
+                <Button
+                  className="bg-[#256eff] text-white hover:bg-[#1c55c7]"
+                  type="submit"
+                  disabled={saving}
+                >
+                  {saving ? <Loader2 className="mr-2 size-4 animate-spin" /> : null}
+                  {editId ? "Save Changes" : "Create Project"}
+                </Button>
+              )}
             </div>
             {error ? <p className="text-sm text-red-600">{error}</p> : null}
           </form>

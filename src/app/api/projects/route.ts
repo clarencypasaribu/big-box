@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 
-import { createSupabaseAdminClient } from "../../../utils/supabase-admin";
+import { createSupabaseServiceClient } from "../../../utils/supabase-service";
 import { createSupabaseServerClient } from "../../../utils/supabase-server";
 
 function getBearerToken(request: Request) {
@@ -13,9 +13,11 @@ function getBearerToken(request: Request) {
 async function getUserId(request: Request) {
   const token = getBearerToken(request);
   if (token) {
-    const supabaseAdmin = createSupabaseAdminClient();
-    const { data, error } = await supabaseAdmin.auth.getUser(token);
-    if (!error && data.user?.id) return data.user.id;
+    if (process.env.NEXT_PUBLIC_SUPABASE_URL && process.env.SUPABASE_SERVICE_ROLE_KEY) {
+      const supabaseAdmin = await createSupabaseServiceClient();
+      const { data, error } = await supabaseAdmin.auth.getUser(token);
+      if (!error && data.user?.id) return data.user.id;
+    }
   }
 
   try {
@@ -31,7 +33,7 @@ async function getUserId(request: Request) {
 
 export async function GET() {
   try {
-    const supabase = createSupabaseAdminClient();
+    const supabase = await createSupabaseServiceClient();
     const { data, error } = await supabase
       .from("projects")
       .select("id,name,code,location,status,progress,lead,icon_bg,description,owner_id,updated_at,created_at")
@@ -52,11 +54,9 @@ export async function POST(request: Request) {
   try {
     const body = await request.json();
     const ownerId = await getUserId(request);
-    if (!ownerId) {
-      return NextResponse.json({ message: "Harus login untuk membuat project" }, { status: 401 });
-    }
 
     const payload = {
+      id: body.id ? String(body.id) : crypto.randomUUID(),
       name: String(body.name ?? "").trim(),
       code: body.code ? String(body.code).trim() : null,
       location: body.location ? String(body.location).trim() : null,
@@ -65,14 +65,14 @@ export async function POST(request: Request) {
       lead: body.lead ? String(body.lead).trim() : null,
       icon_bg: body.iconBg ? String(body.iconBg) : null,
       description: body.description ? String(body.description) : null,
-      owner_id: ownerId,
+      owner_id: ownerId ?? null,
     };
 
     if (!payload.name) {
       return NextResponse.json({ message: "Nama project wajib diisi" }, { status: 400 });
     }
 
-    const supabase = createSupabaseAdminClient();
+    const supabase = await createSupabaseServiceClient();
     const { data, error } = await supabase.from("projects").insert(payload).select().maybeSingle();
 
     if (error) {
