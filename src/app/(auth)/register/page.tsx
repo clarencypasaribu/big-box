@@ -87,7 +87,7 @@ export default function RegisterPage() {
     setLoading(true);
     const { email, password, phone, position, firstName, lastName } = pendingData;
 
-    const { error: signUpError } = await supabase.auth.signUp({
+    const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
       email,
       password,
       options: {
@@ -107,6 +107,19 @@ export default function RegisterPage() {
     if (signUpError) {
       setError(signUpError.message);
       return;
+    }
+
+    const token = signUpData.session?.access_token;
+    if (token) {
+      const res = await fetch("/api/profile/sync", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        setError(body.message || "Gagal menyimpan profil.");
+        return;
+      }
     }
 
     setRoleDialogOpen(false);

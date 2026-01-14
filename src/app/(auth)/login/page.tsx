@@ -55,23 +55,17 @@ export default function LoginPage() {
 
     const role: "project_manager" | "team_member" = rawRole;
 
-    const { error: profileError } = await supabase
-      .from("profiles")
-      .upsert(
-        {
-          id: user.id,
-          email: user.email,
-          first_name: (user.user_metadata?.firstName as string) ?? "",
-          last_name: (user.user_metadata?.lastName as string) ?? "",
-          full_name: (user.user_metadata?.name as string) ?? user.email,
-          role,
-        },
-        { onConflict: "id" }
-      );
-
-    if (profileError) {
-      setError(profileError.message);
-      return;
+    const token = data.session?.access_token;
+    if (token) {
+      const res = await fetch("/api/profile/sync", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        setError(body.message || "Gagal menyimpan profil.");
+        return;
+      }
     }
 
     const destination = roleToPath[role] ?? "/member/dashboard";
