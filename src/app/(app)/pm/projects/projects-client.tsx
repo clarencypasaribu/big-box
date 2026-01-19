@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import { Eye, Loader2, MoreHorizontal, Pencil, Plus, Trash2 } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
@@ -31,22 +32,19 @@ import {
 import { supabase } from "@/utils/supabase";
 
 export type ProjectRow = {
-  id?: string | null;
+  id?: string | null; // we store uuid here for routing
   name: string;
   code?: string | null;
   location: string;
-  status:
-    | "Cloud"
-    | "On-Premise"
-    | "Hybrid"
-    | "At Risk"
-  | "In Progress"
-  | "Completed";
+  status: "In Progress" | "Completed" | "Not Started" | "Pending";
   progress: number;
   lead: string;
   updated?: string | null;
   description?: string | null;
   iconBg?: string;
+  startDate?: string | null;
+  endDate?: string | null;
+  teamMembers?: string[];
 };
 
 type ProjectFormState = {
@@ -57,29 +55,32 @@ type ProjectFormState = {
   progress: number;
   lead: string;
   description: string;
+  startDate: string;
+  endDate: string;
+  teamMembers: string[];
 };
 
-const statusOptions: ProjectRow["status"][] = [
-  "Cloud",
-  "On-Premise",
-  "Hybrid",
-  "At Risk",
-  "In Progress",
-  "Completed",
+const statusOptions: ProjectRow["status"][] = ["In Progress", "Completed", "Not Started", "Pending"];
+
+const defaultTeamOptions = [
+  "Eliza Talent",
+  "Sarah Jenkins",
+  "Lina Hartono",
+  "Rafi Mahendra",
+  "Dwi Kurniawan",
+  "Fina Putri",
 ];
 
 const statusColor: Record<ProjectRow["status"], string> = {
-  Cloud: "bg-amber-50 text-amber-700",
-  "On-Premise": "bg-blue-50 text-blue-700",
-  Hybrid: "bg-emerald-50 text-emerald-700",
-  "At Risk": "bg-purple-50 text-purple-700",
   "In Progress": "bg-amber-50 text-amber-700",
   Completed: "bg-emerald-50 text-emerald-700",
+  "Not Started": "bg-slate-100 text-slate-700",
+  Pending: "bg-blue-50 text-blue-700",
 };
 
 function progressTone(status: ProjectRow["status"]) {
   if (status === "Completed") return "bg-emerald-500";
-  if (status === "At Risk") return "bg-rose-500";
+  if (status === "Pending") return "bg-rose-500";
   return "bg-indigo-500";
 }
 
@@ -95,6 +96,7 @@ function formatDate(iso?: string | null) {
 }
 
 export function ProjectsClient({ initialProjects }: { initialProjects: ProjectRow[] }) {
+  const router = useRouter();
   const [projects, setProjects] = useState<ProjectRow[]>(initialProjects);
   const [loading, setLoading] = useState(!initialProjects.length);
   const [error, setError] = useState<string | null>(null);
@@ -103,6 +105,9 @@ export function ProjectsClient({ initialProjects }: { initialProjects: ProjectRo
   const [saving, setSaving] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [editId, setEditId] = useState<string | null>(null);
+  const [teamOptions, setTeamOptions] = useState<string[]>(defaultTeamOptions);
+  const [newMember, setNewMember] = useState("");
+  const [teamSearch, setTeamSearch] = useState("");
   const [form, setForm] = useState<ProjectFormState>({
     name: "",
     code: "",
@@ -111,6 +116,9 @@ export function ProjectsClient({ initialProjects }: { initialProjects: ProjectRo
     progress: 0,
     lead: "",
     description: "",
+    startDate: "",
+    endDate: "",
+    teamMembers: [],
   });
 
   const dialogTitle =
@@ -135,7 +143,7 @@ export function ProjectsClient({ initialProjects }: { initialProjects: ProjectRo
       const body = await res.json();
       const rows: ProjectRow[] =
         body.data?.map((row: any) => ({
-          id: row.id,
+          id: row.uuid ?? row.id ?? null,
           name: row.name ?? "Untitled Project",
           code: row.code ?? "",
           location: row.location ?? "",
@@ -145,6 +153,9 @@ export function ProjectsClient({ initialProjects }: { initialProjects: ProjectRo
           updated: row.updated_at ?? row.created_at,
           description: row.description ?? "",
           iconBg: row.icon_bg ?? "bg-indigo-100 text-indigo-700",
+          startDate: row.start_date ?? null,
+          endDate: row.end_date ?? null,
+          teamMembers: row.team_members ?? [],
         })) ?? [];
 
       setProjects(rows);
@@ -158,6 +169,7 @@ export function ProjectsClient({ initialProjects }: { initialProjects: ProjectRo
   function openCreateDialog() {
     setEditId(null);
     setDialogMode("create");
+    setTeamOptions(defaultTeamOptions);
     setForm({
       name: "",
       code: "",
@@ -166,6 +178,9 @@ export function ProjectsClient({ initialProjects }: { initialProjects: ProjectRo
       progress: 0,
       lead: "",
       description: "",
+      startDate: "",
+      endDate: "",
+      teamMembers: [],
     });
     setDialogOpen(true);
     setError(null);
@@ -174,6 +189,10 @@ export function ProjectsClient({ initialProjects }: { initialProjects: ProjectRo
   function openEditDialog(project: ProjectRow) {
     setEditId(project.id ?? null);
     setDialogMode("edit");
+    setTeamOptions((prev) => {
+      const merged = new Set([...prev, ...(project.teamMembers || []), project.lead].filter(Boolean));
+      return Array.from(merged);
+    });
     setForm({
       name: project.name || "",
       code: project.code || "",
@@ -182,25 +201,21 @@ export function ProjectsClient({ initialProjects }: { initialProjects: ProjectRo
       progress: project.progress ?? 0,
       lead: project.lead || "",
       description: project.description || "",
+      startDate: project.startDate || "",
+      endDate: project.endDate || "",
+      teamMembers: project.teamMembers || [],
     });
     setDialogOpen(true);
     setError(null);
   }
 
-  function openViewDialog(project: ProjectRow) {
-    setEditId(project.id ?? null);
-    setDialogMode("view");
-    setForm({
-      name: project.name || "",
-      code: project.code || "",
-      location: project.location || "",
-      status: project.status,
-      progress: project.progress ?? 0,
-      lead: project.lead || "",
-      description: project.description || "",
-    });
-    setDialogOpen(true);
-    setError(null);
+  function goToDetail(project: ProjectRow) {
+    const slug = project.id || project.code;
+    if (!slug) {
+      setError("Project tidak punya ID atau code untuk dibuka.");
+      return;
+    }
+    router.push(`/pm/projects/${slug}`);
   }
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
@@ -231,7 +246,7 @@ export function ProjectsClient({ initialProjects }: { initialProjects: ProjectRo
       const body = await res.json();
       const saved: any = body.data;
       const normalized: ProjectRow = {
-        id: saved?.id,
+        id: saved?.uuid ?? saved?.id ?? null,
         name: saved?.name ?? payload.name,
         code: saved?.code ?? payload.code,
         location: saved?.location ?? payload.location,
@@ -241,6 +256,9 @@ export function ProjectsClient({ initialProjects }: { initialProjects: ProjectRo
         updated: saved?.updated_at ?? saved?.created_at ?? new Date().toISOString(),
         description: saved?.description ?? payload.description,
         iconBg: saved?.icon_bg ?? "bg-indigo-100 text-indigo-700",
+        startDate: saved?.start_date ?? payload.startDate ?? null,
+        endDate: saved?.end_date ?? payload.endDate ?? null,
+        teamMembers: saved?.team_members ?? payload.teamMembers ?? [],
       };
 
       setProjects((prev) => {
@@ -280,6 +298,26 @@ export function ProjectsClient({ initialProjects }: { initialProjects: ProjectRo
       setDeletingId(null);
     }
   }
+
+  function handleAddMember() {
+    const value = newMember.trim();
+    if (!value) return;
+    setTeamOptions((prev) => (prev.includes(value) ? prev : [...prev, value]));
+    setForm((prev) => ({
+      ...prev,
+      teamMembers: prev.teamMembers.includes(value)
+        ? prev.teamMembers
+        : [...prev.teamMembers, value],
+    }));
+    setNewMember("");
+    setTeamSearch("");
+  }
+
+  const filteredTeam = useMemo(() => {
+    const term = teamSearch.trim().toLowerCase();
+    if (!term) return teamOptions;
+    return teamOptions.filter((name) => name.toLowerCase().includes(term));
+  }, [teamOptions, teamSearch]);
 
   const hasData = useMemo(() => projects.length > 0, [projects.length]);
 
@@ -365,12 +403,9 @@ export function ProjectsClient({ initialProjects }: { initialProjects: ProjectRo
                       </button>
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="end" className="w-44">
-                      <DropdownMenuItem
-                        className="gap-2"
-                        onClick={() => openViewDialog(project)}
-                      >
+                      <DropdownMenuItem className="gap-2" onClick={() => goToDetail(project)}>
                         <Eye className="size-4" />
-                        Details
+                        Details Page
                       </DropdownMenuItem>
                       <DropdownMenuItem
                         className="gap-2"
@@ -412,7 +447,7 @@ export function ProjectsClient({ initialProjects }: { initialProjects: ProjectRo
       {error ? <p className="text-sm text-red-600">{error}</p> : null}
 
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent className="max-w-lg rounded-2xl">
+        <DialogContent className="max-w-3xl rounded-2xl">
           <DialogHeader>
             <DialogTitle className="text-xl font-semibold text-slate-900">
               {dialogTitle}
@@ -439,7 +474,7 @@ export function ProjectsClient({ initialProjects }: { initialProjects: ProjectRo
                   name="code"
                   value={form.code}
                   onChange={(e) => setForm((prev) => ({ ...prev, code: e.target.value }))}
-                  placeholder="PRJ-001"
+                  placeholder="PRJ-001 (kosongkan untuk auto)"
                   disabled={isViewMode}
                 />
               </div>
@@ -497,27 +532,102 @@ export function ProjectsClient({ initialProjects }: { initialProjects: ProjectRo
             <div className="grid gap-3 sm:grid-cols-2">
               <div className="space-y-2">
                 <Label htmlFor="lead">Project Lead</Label>
-                <Input
+                <select
                   id="lead"
                   name="lead"
+                  className="h-10 w-full rounded-md border border-slate-200 bg-white px-3 text-sm text-slate-800 shadow-sm outline-none focus:border-indigo-500 focus:ring-4 focus:ring-indigo-100"
                   value={form.lead}
                   onChange={(e) => setForm((prev) => ({ ...prev, lead: e.target.value }))}
-                  placeholder="Nama PIC"
                   disabled={isViewMode}
-                />
+                >
+                  <option value="">Pilih Lead</option>
+                  {teamOptions.map((member) => (
+                    <option key={member} value={member}>
+                      {member}
+                    </option>
+                  ))}
+                </select>
               </div>
               <div className="space-y-2 sm:col-span-2">
-                <Label htmlFor="description">Description</Label>
-                <textarea
-                  id="description"
-                  name="description"
-                  value={form.description}
-                  onChange={(e) => setForm((prev) => ({ ...prev, description: e.target.value }))}
-                  className="min-h-[90px] w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 shadow-sm outline-none focus:border-indigo-500 focus:ring-4 focus:ring-indigo-100"
-                  placeholder="Deskripsi singkat..."
+                <Label htmlFor="teamMembers">Team Members</Label>
+                <div className="space-y-2 rounded-lg border border-slate-200 bg-white p-3">
+                  <Input
+                    id="teamMembersSearch"
+                    name="teamMembersSearch"
+                    value={teamSearch}
+                    onChange={(e) => setTeamSearch(e.target.value)}
+                    placeholder="Cari anggota..."
+                    disabled={isViewMode}
+                  />
+                  <div className="max-h-40 space-y-1 overflow-auto">
+                    {filteredTeam.length === 0 ? (
+                      <p className="text-xs text-slate-500">Tidak ada hasil.</p>
+                    ) : (
+                      filteredTeam.map((member) => {
+                        const checked = form.teamMembers.includes(member);
+                        return (
+                          <label
+                            key={member}
+                            className="flex cursor-pointer items-center gap-2 rounded-md px-2 py-1 text-sm text-slate-800 hover:bg-slate-50"
+                          >
+                            <input
+                              type="checkbox"
+                              className="size-4 rounded border-slate-300"
+                              checked={checked}
+                              onChange={(e) => {
+                                const next = e.target.checked
+                                  ? [...form.teamMembers, member]
+                                  : form.teamMembers.filter((m) => m !== member);
+                                setForm((prev) => ({ ...prev, teamMembers: next }));
+                              }}
+                              disabled={isViewMode}
+                            />
+                            <span>{member}</span>
+                          </label>
+                        );
+                      })
+                    )}
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="grid gap-3 sm:grid-cols-2">
+              <div className="space-y-2">
+                <Label htmlFor="startDate">Start Date</Label>
+                <Input
+                  id="startDate"
+                  name="startDate"
+                  type="date"
+                  value={form.startDate}
+                  onChange={(e) => setForm((prev) => ({ ...prev, startDate: e.target.value }))}
                   disabled={isViewMode}
                 />
               </div>
+              <div className="space-y-2">
+                <Label htmlFor="endDate">End Date</Label>
+                <Input
+                  id="endDate"
+                  name="endDate"
+                  type="date"
+                  value={form.endDate}
+                  onChange={(e) => setForm((prev) => ({ ...prev, endDate: e.target.value }))}
+                  disabled={isViewMode}
+                />
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="description">Description</Label>
+              <textarea
+                id="description"
+                name="description"
+                value={form.description}
+                onChange={(e) => setForm((prev) => ({ ...prev, description: e.target.value }))}
+                className="min-h-[90px] w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 shadow-sm outline-none focus:border-indigo-500 focus:ring-4 focus:ring-indigo-100"
+                placeholder="Deskripsi singkat..."
+                disabled={isViewMode}
+              />
             </div>
 
             <div className="flex items-center justify-end gap-3 pt-2">

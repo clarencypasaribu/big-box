@@ -24,7 +24,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Separator } from "@/components/ui/separator";
 import { cn } from "@/lib/utils";
-import { SidebarProfile } from "@/components/sidebar-profile";
+import { PMSidebar } from "@/app/(app)/pm/_components/sidebar";
 import { getCurrentUserProfile } from "@/utils/current-user";
 
 type StageData = {
@@ -89,41 +89,7 @@ export default async function PMDashboardPage() {
   return (
     <div className="min-h-screen bg-[#f7f7f9] text-slate-900">
       <div className="mx-auto flex max-w-screen-2xl gap-6 px-4 py-8 lg:px-8">
-        <aside className="flex min-h-[90vh] w-[230px] flex-col justify-between rounded-xl border border-slate-200 bg-white px-5 py-6">
-          <div className="space-y-6">
-            <div className="flex items-center gap-3">
-              <div className="grid size-10 place-items-center rounded-full bg-[#e8defe] text-[#4d2ba3]">
-                <LayoutDashboard className="size-5" />
-              </div>
-              <div className="space-y-0.5">
-                <p className="text-xs font-medium uppercase tracking-[0.14em] text-[#4d2ba3]">
-                  Logo
-                </p>
-                <p className="text-sm font-semibold text-slate-900">Control</p>
-              </div>
-            </div>
-
-            <nav className="space-y-1.5 text-sm font-semibold">
-              {navItems.map(({ label, icon: Icon, active, href }) => (
-                <Link
-                  key={label}
-                  href={href}
-                  className={cn(
-                    "flex w-full items-center gap-3 rounded-lg px-3 py-2 transition-colors",
-                    active
-                      ? "bg-[#e8defe] text-[#2f1c70]"
-                      : "text-slate-600 hover:bg-slate-100"
-                  )}
-                >
-                  <Icon className="size-4" />
-                  <span className="flex-1 text-left">{label}</span>
-                </Link>
-              ))}
-            </nav>
-          </div>
-
-          <SidebarProfile profile={profile} />
-        </aside>
+        <PMSidebar currentPath="/pm/dashboard" profile={profile} />
 
         <main className="flex-1 space-y-6">
           <header className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">

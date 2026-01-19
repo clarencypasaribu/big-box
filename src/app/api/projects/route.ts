@@ -36,7 +36,7 @@ export async function GET() {
     const supabase = await createSupabaseServiceClient();
     const { data, error } = await supabase
       .from("projects")
-      .select("id,name,code,location,status,progress,lead,icon_bg,description,owner_id,updated_at,created_at")
+      .select("*")
       .order("updated_at", { ascending: false })
       .order("created_at", { ascending: false });
 
@@ -56,7 +56,6 @@ export async function POST(request: Request) {
     const ownerId = await getUserId(request);
 
     const payload = {
-      id: body.id ? String(body.id) : crypto.randomUUID(),
       name: String(body.name ?? "").trim(),
       code: body.code ? String(body.code).trim() : null,
       location: body.location ? String(body.location).trim() : null,
@@ -65,6 +64,11 @@ export async function POST(request: Request) {
       lead: body.lead ? String(body.lead).trim() : null,
       icon_bg: body.iconBg ? String(body.iconBg) : null,
       description: body.description ? String(body.description) : null,
+      start_date: body.startDate ? String(body.startDate) : null,
+      end_date: body.endDate ? String(body.endDate) : null,
+      team_members: Array.isArray(body.teamMembers)
+        ? body.teamMembers.map((m: string) => String(m))
+        : null,
       owner_id: ownerId ?? null,
     };
 
@@ -73,7 +77,27 @@ export async function POST(request: Request) {
     }
 
     const supabase = await createSupabaseServiceClient();
-    const { data, error } = await supabase.from("projects").insert(payload).select().maybeSingle();
+
+    if (!payload.code) {
+      const { data: codes } = await supabase
+        .from("projects")
+        .select("code")
+        .not("code", "is", null)
+        .order("created_at", { ascending: false })
+        .limit(1);
+
+      const lastCode = codes?.[0]?.code ?? "";
+      const match = typeof lastCode === "string" ? lastCode.match(/(\d+)$/) : null;
+      const nextNumber = match ? Number(match[1]) + 1 : 1;
+      const padded = String(nextNumber).padStart(4, "0");
+      payload.code = `PRJ-${padded}`;
+    }
+
+    const { data, error } = await supabase
+      .from("projects")
+      .insert(payload)
+      .select("uuid,code,name,location,status,progress,lead,icon_bg,description,start_date,end_date,team_members,owner_id,created_at,updated_at,id")
+      .maybeSingle();
 
     if (error) {
       return NextResponse.json({ message: error.message }, { status: 400 });

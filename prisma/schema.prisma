@@ -28,19 +28,23 @@ model Profile {
 }
 
 model Project {
-  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  uuid        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  code        String?  @unique
   name        String
-  code        String?
   location    String?
   status      String   @default("In Progress")
   progress    Int      @default(0)
   lead        String?
   iconBg      String?  @map("icon_bg")
   description String?
-  ownerId     String?  @map("owner_id") @db.Uuid
-  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt   DateTime @default(now()) @map("updated_at") @db.Timestamptz(6)
+  startDate   DateTime? @map("start_date")
+  endDate     DateTime? @map("end_date")
+  teamMembers String[]  @map("team_members")
+  ownerId     String?   @map("owner_id") @db.Uuid
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @default(now()) @map("updated_at")
 
   @@map("projects")
   @@schema("public")
 }
+
