@@ -5,6 +5,7 @@ export type SidebarProfileData = {
   name: string;
   email: string | null;
   role: string | null;
+  avatarUrl?: string | null;
   workspace?: string | null;
 };
 
@@ -29,7 +30,7 @@ export async function getCurrentUserProfile(): Promise<SidebarProfileData> {
     const user = session.user;
     const { data: profile } = await supabase
       .from("profiles")
-      .select("full_name,email,role")
+      .select("full_name,email,role,avatar_url")
       .eq("id", user.id)
       .maybeSingle();
 
@@ -44,6 +45,7 @@ export async function getCurrentUserProfile(): Promise<SidebarProfileData> {
       name,
       email: profile?.email ?? user.email ?? null,
       role: profile?.role ?? (user.user_metadata?.role as string | null) ?? null,
+      avatarUrl: profile?.avatar_url ?? null,
       workspace: "Bigbox Workspace",
     };
   } catch (error) {

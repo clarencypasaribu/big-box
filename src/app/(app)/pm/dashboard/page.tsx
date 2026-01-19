@@ -26,6 +26,7 @@ import { Separator } from "@/components/ui/separator";
 import { cn } from "@/lib/utils";
 import { PMSidebar } from "@/app/(app)/pm/_components/sidebar";
 import { getCurrentUserProfile } from "@/utils/current-user";
+import { createSupabaseServiceClient } from "@/utils/supabase-service";
 
 type StageData = {
   stage: string;
@@ -84,6 +85,20 @@ const notifications: Notification[] = [
 
 export default async function PMDashboardPage() {
   const profile = await getCurrentUserProfile();
+  let blockerCount = 0;
+  if (profile.id) {
+    try {
+      const supabase = await createSupabaseServiceClient();
+      const { count } = await supabase
+        .from("blockers")
+        .select("id", { count: "exact", head: true })
+        .eq("pm_id", profile.id)
+        .eq("status", "Open");
+      blockerCount = count ?? 0;
+    } catch {
+      blockerCount = 0;
+    }
+  }
   const maxStageValue = Math.max(...stageData.map((stage) => stage.value));
 
   return (
@@ -169,14 +184,17 @@ export default async function PMDashboardPage() {
                     </p>
                   </div>
                   <div className="text-center">
-                    <p className="text-4xl font-semibold text-rose-600">3</p>
+                    <p className="text-4xl font-semibold text-rose-600">{blockerCount}</p>
                     <Button
                       variant="outline"
                       size="sm"
                       className="mt-2 border-slate-200 text-slate-700"
+                      asChild
                     >
-                      View Blocker Details
-                      <ArrowUpRight className="size-4" />
+                      <Link href="/pm/risks">
+                        View Blocker Details
+                        <ArrowUpRight className="size-4" />
+                      </Link>
                     </Button>
                   </div>
                 </CardContent>

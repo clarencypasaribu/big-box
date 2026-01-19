@@ -4,7 +4,7 @@ import { useMemo, useState } from "react";
 import { LogOut, Mail, UserRound } from "lucide-react";
 import { useRouter } from "next/navigation";
 
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -57,6 +57,9 @@ export function SidebarProfile({ profile }: SidebarProfileProps) {
           className="flex w-full items-center gap-3 rounded-lg bg-slate-50 px-3 py-3 text-left transition hover:bg-slate-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
         >
           <Avatar className="size-10 border border-slate-200">
+            {profile.avatarUrl ? (
+              <AvatarImage src={profile.avatarUrl} alt={profile.name} />
+            ) : null}
             <AvatarFallback className="bg-slate-200 text-sm font-semibold text-slate-800">
               {initials}
             </AvatarFallback>

@@ -1,14 +1,22 @@
+import { getCurrentUserProfile } from "@/utils/current-user";
+import { TaskDetailClient } from "./task-detail-client";
+import type { MemberProjectItem } from "@/components/member-sidebar";
+
 interface TaskPageProps {
   params: { taskId: string };
 }
 
-export default function MemberTaskDetailPage({ params }: TaskPageProps) {
+export default async function MemberTaskDetailPage({ params }: TaskPageProps) {
+  const profile = await getCurrentUserProfile();
+  const memberProjects: MemberProjectItem[] = [
+    { id: "mobile", name: "Mobile App", color: "green" },
+  ];
+
   return (
-    <div className="p-6">
-      <h1 className="text-2xl font-semibold text-slate-900">
-        Detail Tugas #{params.taskId}
-      </h1>
-      <p className="text-slate-600">Lihat progres, due date, dan catatan.</p>
-    </div>
+    <TaskDetailClient
+      profile={profile}
+      taskId={params.taskId}
+      projects={memberProjects}
+    />
   );
 }

@@ -18,6 +18,7 @@ model Profile {
   lastName  String?  @map("last_name")
   phone     String?  @map("phone")
   position  String?  @map("position")
+  bio       String?  @map("bio")
   role      String?  @map("role")
   avatarUrl String?  @map("avatar_url")
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
@@ -28,23 +29,60 @@ model Profile {
 }
 
 model Project {
-  uuid        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  code        String?  @unique
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   name        String
+  code        String?
   location    String?
   status      String   @default("In Progress")
   progress    Int      @default(0)
   lead        String?
   iconBg      String?  @map("icon_bg")
   description String?
-  startDate   DateTime? @map("start_date")
-  endDate     DateTime? @map("end_date")
+  ownerId     String?  @map("owner_id") @db.Uuid
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt   DateTime @default(now()) @map("updated_at") @db.Timestamptz(6)
+  startDate   DateTime? @map("start_date") @db.Date
+  endDate     DateTime? @map("end_date") @db.Date
   teamMembers String[]  @map("team_members")
-  ownerId     String?   @map("owner_id") @db.Uuid
-  createdAt   DateTime  @default(now()) @map("created_at")
-  updatedAt   DateTime  @default(now()) @map("updated_at")
+  tasks       Task[]
 
   @@map("projects")
   @@schema("public")
 }
 
+model Task {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  seedKey     String?  @unique @map("seed_key")
+  title       String
+  description String?
+  status      String
+  priority    String?
+  stage       String?
+  dueDate     String?  @map("due_date")
+  projectId   String   @map("project_id") @db.Uuid
+  project     Project  @relation(fields: [projectId], references: [id])
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt   DateTime @default(now()) @map("updated_at") @db.Timestamptz(6)
+
+  @@map("tasks")
+  @@schema("public")
+}
+
+model Blocker {
+  id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  taskId       String   @map("task_id") @db.Uuid
+  taskTitle    String?  @map("task_title")
+  projectId    String   @map("project_id") @db.Uuid
+  projectName  String?  @map("project_name")
+  reason       String?
+  notes        String?
+  reporterId   String   @map("reporter_id") @db.Uuid
+  reporterName String?  @map("reporter_name")
+  pmId         String   @map("pm_id") @db.Uuid
+  status       String   @default("Open")
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt    DateTime @default(now()) @map("updated_at") @db.Timestamptz(6)
+
+  @@map("blockers")
+  @@schema("public")
+}
