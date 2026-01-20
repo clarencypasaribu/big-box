@@ -75,141 +75,48 @@ function normalizeStageId(value?: string | null) {
   return stageIdByTitle[trimmed] ?? trimmed;
 }
 
-const initialColumns: Column[] = [
+const baseColumns: Column[] = [
   {
     id: "stage-1",
     title: stageTitleMap["stage-1"],
-    status: "Completed",
+    status: "Active",
     color: "indigo",
-    approvalStatus: "Approved",
-    cards: [
-      {
-        id: "t-1001",
-        title: "Define scope & milestones",
-        tag: "Infra",
-        description: "Align goals, deliverables, and target dates.",
-        priority: "Medium",
-        comments: 6,
-        files: 2,
-      },
-      {
-        id: "t-1002",
-        title: "Research requirements",
-        tag: "Infra",
-        description: "Gather constraints, risks, and dependencies.",
-        priority: "Medium",
-        comments: 4,
-        files: 1,
-      },
-    ],
+    approvalStatus: "Not Submitted",
+    cards: [],
   },
   {
     id: "stage-2",
     title: stageTitleMap["stage-2"],
-    status: "Completed",
+    status: "Pending",
     color: "indigo",
-    approvalStatus: "Pending",
-    cards: [
-      {
-        id: "t-1003",
-        title: "Instalasi BigLake di Server Lokal",
-        tag: "Infra",
-        description: "Brainstorming brings team members' diverse experience into play.",
-        priority: "Medium",
-        comments: 12,
-        files: 0,
-      },
-      {
-        id: "t-1004",
-        title: "Research",
-        tag: "Infra",
-        description: "Brainstorming brings team members' diverse experience into play.",
-        priority: "Medium",
-        comments: 12,
-        files: 0,
-      },
-      {
-        id: "t-1005",
-        title: "Research",
-        tag: "Infra",
-        description: "Brainstorming brings team members' diverse experience into play.",
-        priority: "Medium",
-        comments: 12,
-        files: 0,
-      },
-    ],
+    approvalStatus: "Not Submitted",
+    cards: [],
   },
   {
     id: "stage-3",
     title: stageTitleMap["stage-3"],
-    status: "Active",
+    status: "Pending",
     color: "amber",
     approvalStatus: "Not Submitted",
-    cards: [
-      {
-        id: "t-1006",
-        title: "Buat Visualisasi Kependudukan di Big Builder",
-        tag: "Infra",
-        description: "Brainstorming brings team members' diverse experience into play.",
-        comments: 14,
-        files: 15,
-        priority: "High",
-      },
-      {
-        id: "t-1007",
-        title: "Config BigSpider untuk Crawling",
-        tag: "Crawler",
-        description: "Brainstorming brings team members' diverse experience into play.",
-        priority: "Medium",
-        comments: 12,
-        files: 0,
-      },
-    ],
+    cards: [],
   },
   {
     id: "stage-4",
     title: stageTitleMap["stage-4"],
-    status: "Testing",
+    status: "Pending",
     color: "emerald",
     approvalStatus: "Not Submitted",
-    cards: [
-      {
-        id: "t-1008",
-        title: "Test Load API BigEnvelope",
-        tag: "QA",
-        description: "Planned: Oct 12",
-        priority: "Low",
-        comments: 0,
-        files: 0,
-        highlight: "emerald",
-      },
-    ],
+    cards: [],
   },
   {
     id: "stage-5",
     title: stageTitleMap["stage-5"],
-    status: "Active",
+    status: "Pending",
     color: "emerald",
     approvalStatus: "Not Submitted",
-    cards: [
-      {
-        id: "t-1010",
-        title: "Release checklist",
-        tag: "QA",
-        description: "Final verification before handoff.",
-        priority: "Medium",
-        comments: 3,
-        files: 1,
-      },
-    ],
+    cards: [],
   },
 ];
-
-const emptyColumns: Column[] = initialColumns.map((column, index) => ({
-  ...column,
-  status: index === 0 ? "Active" : "Pending",
-  cards: [],
-}));
 
 const statusTone = {
   Completed: "bg-emerald-100 text-emerald-700",
@@ -300,8 +207,8 @@ function normalizeColumns(columns: Column[]) {
     cards:
       column.status === "Completed"
         ? column.cards.map((card) =>
-            card.done === undefined ? { ...card, done: true } : card
-          )
+          card.done === undefined ? { ...card, done: true } : card
+        )
         : column.cards,
   }));
 }
@@ -309,16 +216,13 @@ function normalizeColumns(columns: Column[]) {
 export function ProjectBoardClient({
   projectName,
   projectId,
-  seedTasks = true,
 }: {
   projectName: string;
   projectId: string;
-  seedTasks?: boolean;
 }) {
   const router = useRouter();
   const ignoreNextNavRef = useRef(false);
   const title = useMemo(() => projectName || "Smart City Project", [projectName]);
-  const storageKey = useMemo(() => `member-project:v2:${projectId}`, [projectId]);
   const [columns, setColumns] = useState<Column[] | null>(null);
   const [commentsOpen, setCommentsOpen] = useState(false);
   const [filesOpen, setFilesOpen] = useState(false);
@@ -364,7 +268,7 @@ export function ProjectBoardClient({
 
       const tasks = Array.isArray(tasksBody.data) ? tasksBody.data : [];
       const sanitizedApprovals: Record<string, ApprovalStatus> = {};
-      const nextColumns = emptyColumns.map((column, index) => {
+      const nextColumns = baseColumns.map((column, index) => {
         const columnTasks = tasks.filter(
           (task: any) => normalizeStageId(task.stage) === column.id
         );
@@ -398,7 +302,7 @@ export function ProjectBoardClient({
       setStageApprovals(sanitizedApprovals);
       setColumns(normalizeColumns(nextColumns));
     } catch {
-      setColumns(normalizeColumns(emptyColumns));
+      setColumns(normalizeColumns(baseColumns));
     } finally {
       if (!options?.silent) {
         setLoadingTasks(false);
@@ -408,29 +312,25 @@ export function ProjectBoardClient({
   const updateColumns = useCallback(
     (updater: (source: Column[]) => Column[]) => {
       setColumns((prev) => {
-        const source = prev ?? (seedTasks ? initialColumns : emptyColumns);
-        const next = updater(source);
-        if (typeof window !== "undefined") {
-          window.localStorage.setItem(storageKey, JSON.stringify(next));
-        }
-        return next;
+        const source = prev ?? baseColumns;
+        return updater(source);
       });
     },
-    [storageKey, seedTasks]
+    []
   );
 
   const stageOptions = useMemo(() => {
-    const titles = initialColumns.map((column) => stageTitleMap[column.id] ?? column.title);
+    const titles = baseColumns.map((column) => stageTitleMap[column.id] ?? column.title);
     return ["All stages", ...titles];
   }, []);
-  const stageOrder = useMemo(() => initialColumns.map((column) => column.id), []);
+  const stageOrder = useMemo(() => baseColumns.map((column) => column.id), []);
   const getStageIndex = useCallback(
     (stageId: string) => stageOrder.indexOf(stageId),
     [stageOrder]
   );
 
   const visibleColumns = useMemo(() => {
-    const source = normalizeColumns(columns ?? (seedTasks ? initialColumns : emptyColumns));
+    const source = normalizeColumns(columns ?? baseColumns);
     const stageFiltered =
       stageFilter === "All stages" ? source : source.filter((column) => column.title === stageFilter);
     const queryTokens = tokenizeSearch(searchTerm.trim());
@@ -447,45 +347,13 @@ export function ProjectBoardClient({
       })
       .filter((column) => column.cards.length > 0);
   }, [columns, stageFilter, searchTerm]);
-  const [hydrated, setHydrated] = useState(false);
-
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    const raw = window.localStorage.getItem(storageKey);
-    if (raw) {
-      try {
-        const parsed = JSON.parse(raw) as Column[];
-        if (Array.isArray(parsed)) {
-          if (
-            !seedTasks &&
-            parsed.some((column) => Array.isArray(column.cards) && column.cards.length > 0)
-          ) {
-            setColumns(normalizeColumns(emptyColumns));
-            window.localStorage.setItem(storageKey, JSON.stringify(emptyColumns));
-          } else {
-            setColumns(normalizeColumns(parsed));
-          }
-        } else {
-          setColumns(normalizeColumns(seedTasks ? initialColumns : emptyColumns));
-        }
-      } catch {
-        setColumns(normalizeColumns(seedTasks ? initialColumns : emptyColumns));
-      }
-    } else {
-      setColumns(normalizeColumns(seedTasks ? initialColumns : emptyColumns));
-    }
-    setHydrated(true);
-  }, [storageKey, seedTasks]);
-
+  const hasAnyTasks = useMemo(
+    () => (columns ?? []).some((column) => column.cards.length > 0),
+    [columns]
+  );
   useEffect(() => {
     refreshProjectData();
   }, [refreshProjectData]);
-
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    if (!hydrated || !columns) return;
-    window.localStorage.setItem(storageKey, JSON.stringify(columns));
-  }, [columns, storageKey, hydrated]);
 
   return (
     <div className="space-y-6">
@@ -567,7 +435,7 @@ export function ProjectBoardClient({
         </div>
       </header>
 
-      {!hydrated || !columns || loadingTasks ? (
+      {!columns || loadingTasks ? (
         <div className="rounded-2xl border border-slate-200 bg-white p-6 text-sm text-slate-500">
           Loading project board...
         </div>
@@ -576,382 +444,367 @@ export function ProjectBoardClient({
           No tasks found. Try a different search or stage filter.
         </div>
       ) : (
-        <div className="grid gap-4 lg:grid-cols-3">
+        <div className="space-y-4">
+          {!hasAnyTasks ? (
+            <div className="rounded-2xl border border-dashed border-slate-200 bg-white p-5 text-sm text-slate-500">
+              Belum ada task di project ini. Tambahkan task di setiap stage.
+            </div>
+          ) : null}
+          <div className="grid gap-4 lg:grid-cols-3">
             {visibleColumns.map((column) => (
-            <section
-              key={column.id}
-              className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm"
-            >
-              {(() => {
-                const stageIndex = getStageIndex(column.id);
-                const previousStageId = stageIndex > 0 ? stageOrder[stageIndex - 1] : null;
-                const previousApproved =
-                  stageIndex === 0
-                    ? true
-                    : stageApprovals[previousStageId ?? ""] === "Approved";
-                const isLocked = !previousApproved;
-                const approvalStatus = stageApprovals[column.id] ?? "Not Submitted";
-                const approvalLabel =
-                  approvalStatus === "Pending"
-                    ? "Menunggu Approval"
-                    : approvalStatus === "Approved"
-                      ? "Approved"
-                      : "Kirim Approval";
-                return (
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm font-semibold text-slate-900">{column.title}</p>
-                  <div className="mt-1 flex items-center gap-2">
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <Button
-                          disabled={isLocked}
-                          variant="outline"
-                          size="sm"
-                          className={cn(
-                            "h-7 gap-1 rounded-md px-2 text-xs",
-                            statusTone[column.status]
-                          )}
-                        >
-                          <span>{column.status}</span>
-                          <ChevronDown className="size-3" />
-                        </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="start" className="w-40">
-                        {statusOptions.map((status) => (
-                          <DropdownMenuItem
-                            key={status}
-                            disabled={isLocked}
-                            onSelect={(event) => {
-                              event.preventDefault();
-                              updateColumns((source) =>
-                                source.map((item) => {
-                                  if (item.id !== column.id) return item;
-                                  return {
-                                    ...item,
-                                    status,
-                                    cards:
-                                      status === "Completed"
-                                        ? item.cards.map((card) => ({ ...card, done: true }))
-                                        : item.cards,
-                                  };
-                                })
-                              );
-                            }}
+              <section
+                key={column.id}
+                className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm"
+              >
+                {(() => {
+                  const stageIndex = getStageIndex(column.id);
+                  const previousStageId = stageIndex > 0 ? stageOrder[stageIndex - 1] : null;
+                  const previousApproved =
+                    stageIndex === 0
+                      ? true
+                      : stageApprovals[previousStageId ?? ""] === "Approved";
+                  const isLocked = !previousApproved;
+                  const approvalStatus = stageApprovals[column.id] ?? "Not Submitted";
+                  const approvalLabel =
+                    approvalStatus === "Pending"
+                      ? "Menunggu Approval"
+                      : approvalStatus === "Approved"
+                        ? "Approved"
+                        : "Kirim Approval";
+                  return (
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-sm font-semibold text-slate-900">{column.title}</p>
+                        <div className="mt-1 flex items-center gap-2">
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button
+                                disabled={isLocked}
+                                variant="outline"
+                                size="sm"
+                                className={cn(
+                                  "h-7 gap-1 rounded-md px-2 text-xs",
+                                  statusTone[column.status]
+                                )}
+                              >
+                                <span>{column.status}</span>
+                                <ChevronDown className="size-3" />
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="start" className="w-40">
+                              {statusOptions.map((status) => (
+                                <DropdownMenuItem
+                                  key={status}
+                                  disabled={isLocked}
+                                  onSelect={(event) => {
+                                    event.preventDefault();
+                                    updateColumns((source) =>
+                                      source.map((item) => {
+                                        if (item.id !== column.id) return item;
+                                        return {
+                                          ...item,
+                                          status,
+                                          cards:
+                                            status === "Completed"
+                                              ? item.cards.map((card) => ({ ...card, done: true }))
+                                              : item.cards,
+                                        };
+                                      })
+                                    );
+                                  }}
+                                  className={cn(
+                                    "flex items-center justify-between",
+                                    column.status === status && "font-semibold text-slate-900"
+                                  )}
+                                >
+                                  <span>{status}</span>
+                                  {column.status === status ? <span>✓</span> : null}
+                                </DropdownMenuItem>
+                              ))}
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        </div>
+                        <div className="mt-2 flex flex-wrap items-center gap-2">
+                          <span
                             className={cn(
-                              "flex items-center justify-between",
-                              column.status === status && "font-semibold text-slate-900"
+                              "rounded-md px-2 py-1 text-xs font-semibold",
+                              approvalTone[approvalStatus]
                             )}
                           >
-                            <span>{status}</span>
-                            {column.status === status ? <span>✓</span> : null}
-                          </DropdownMenuItem>
-                        ))}
-                      </DropdownMenuContent>
-                    </DropdownMenu>
-                  </div>
-                  <div className="mt-2 flex flex-wrap items-center gap-2">
-                    <span
-                      className={cn(
-                        "rounded-md px-2 py-1 text-xs font-semibold",
-                        approvalTone[approvalStatus]
-                      )}
-                    >
-                      {approvalStatus}
-                    </span>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="h-7 px-2 text-xs"
-                      disabled={
-                        approvalStatus === "Pending" ||
-                        approvalStatus === "Approved" ||
-                        isLocked ||
-                        column.cards.length === 0 ||
-                        column.cards.some((card) => !card.done)
-                      }
-                      onClick={async () => {
-                        try {
-                          const res = await fetch("/api/project-stage-approvals", {
-                            method: "POST",
-                            headers: { "Content-Type": "application/json" },
-                            body: JSON.stringify({
-                              projectId,
-                              stageId: column.id,
-                              status: "Pending",
-                            }),
-                          });
-                          if (!res.ok) return;
-                          await refreshProjectData();
-                        } catch {
-                          // ignore
-                        }
-                      }}
-                    >
-                      {approvalLabel}
-                    </Button>
-                    {isLocked ? (
-                      <div className="flex items-center gap-1 text-xs text-slate-400">
-                        <Lock className="size-3" />
-                        Menunggu approval stage sebelumnya
-                      </div>
-                    ) : null}
-                  </div>
-                </div>
-                  <Button
-                  variant="ghost"
-                  size="icon"
-                  className="h-8 w-8"
-                  disabled={isLocked}
-                  onClick={() => {
-                    setAddTaskStage(column.title);
-                    setTaskName("");
-                    setTaskMember("Select Member");
-                    setTaskPriority("Select Priority");
-                    setTaskDueDate("");
-                    setTaskDescription("");
-                    setAddTaskOpen(true);
-                  }}
-                >
-                  <Plus className="size-4 text-slate-500" />
-                </Button>
-              </div>
-                );
-              })()}
-
-            <div className="mt-4 space-y-4">
-                {column.cards
-                  .map((card, index) => ({ card, index }))
-                .sort(
-                  (a, b) =>
-                    Number(Boolean(b.card.done)) - Number(Boolean(a.card.done)) ||
-                    a.index - b.index
-                )
-                .map(({ card }) => {
-                  const isDone = Boolean(card.done);
-                  return (
-                    <div
-                      key={card.id}
-                      role="button"
-                      tabIndex={0}
-                      onClick={(event) => {
-                        if (ignoreNextNavRef.current) {
-                          ignoreNextNavRef.current = false;
-                          return;
-                        }
-                        const target = event.target as HTMLElement | null;
-                        if (target?.closest('[data-no-nav="true"]')) return;
-                        router.push(`/member/tasks/${card.id}`);
-                      }}
-                      onKeyDown={(event) => {
-                        if (event.key !== "Enter" && event.key !== " ") return;
-                        if (ignoreNextNavRef.current) {
-                          ignoreNextNavRef.current = false;
-                          return;
-                        }
-                        const target = event.target as HTMLElement | null;
-                        if (target?.closest('[data-no-nav="true"]')) return;
-                        event.preventDefault();
-                        router.push(`/member/tasks/${card.id}`);
-                      }}
-                      className={cn(
-                        "flex min-h-[180px] cursor-pointer flex-col gap-3 rounded-xl border border-slate-200 bg-white p-4 shadow-sm transition hover:border-slate-300 hover:shadow-md",
-                        isDone && "bg-slate-200 opacity-50"
-                      )}
-                    >
-                  <div className="flex items-center justify-between">
-                    <span
-                      className={cn(
-                        "rounded-md px-2 py-1 text-xs font-semibold",
-                        card.priority ? priorityTone[card.priority] : "bg-slate-100 text-slate-700"
-                      )}
-                    >
-                      {card.priority ? `${card.priority} Priority` : "No Priority"}
-                    </span>
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <button
-                          type="button"
-                          data-no-nav="true"
-                          className="text-xs text-slate-400 hover:text-slate-600"
-                          onClick={(event) => {
-                            event.preventDefault();
-                            event.stopPropagation();
-                            ignoreNextNavRef.current = true;
-                          }}
-                        >
-                          •••
-                        </button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end" className="w-36">
-                        <DropdownMenuItem
-                          onSelect={async (event) => {
-                            event.preventDefault();
-                            event.stopPropagation();
-                            ignoreNextNavRef.current = true;
-                            const nextDone = !card.done;
-                            const applyDoneState = (value: boolean) => {
-                              updateColumns((source) =>
-                                source.map((column) => {
-                                  if (!column.cards.some((item) => item.id === card.id)) {
-                                    return column;
-                                  }
-                                  const nextCards = column.cards.map((item) =>
-                                    item.id === card.id ? { ...item, done: value } : item
-                                  );
-                                  const allDone =
-                                    nextCards.length > 0 && nextCards.every((item) => item.done);
-                                  const nextStatus =
-                                    nextCards.length === 0
-                                      ? getStageIndex(column.id) === 0
-                                        ? "Active"
-                                        : "Pending"
-                                      : allDone
-                                        ? "Completed"
-                                        : "Active";
-                                  return {
-                                    ...column,
-                                    status: nextStatus,
-                                    cards: nextCards,
-                                  };
-                                })
-                              );
-                            };
-                            applyDoneState(nextDone);
-                            const taskId = card.taskId;
-                            if (!taskId) return;
-                            try {
-                              const statusCandidates = nextDone
-                                ? ["Done", "Completed"]
-                                : ["In Progress", "Active"];
-                              let requestOk = false;
-                              for (const status of statusCandidates) {
-                                const res = await fetch(`/api/project-tasks/${taskId}`, {
-                                  method: "PATCH",
-                                  headers: { "Content-Type": "application/json" },
-                                  body: JSON.stringify({ status }),
-                                });
-                                if (res.ok) {
-                                  requestOk = true;
-                                  break;
-                                }
-                              }
-                              if (!requestOk) {
-                                applyDoneState(!nextDone);
-                                await refreshProjectData({ silent: true });
-                              }
-                            } finally {
-                              // no-op: keep optimistic state unless we detect a failure
+                            {approvalStatus}
+                          </span>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="h-7 px-2 text-xs"
+                            disabled={
+                              approvalStatus === "Pending" ||
+                              approvalStatus === "Approved" ||
+                              isLocked ||
+                              column.cards.length === 0 ||
+                              column.cards.some((card) => !card.done)
                             }
-                          }}
-                        >
-                          {card.done ? "Mark as Undone" : "Mark as Done"}
-                        </DropdownMenuItem>
-                        <DropdownMenuItem
-                          onSelect={(event) => {
-                            event.stopPropagation();
-                            ignoreNextNavRef.current = true;
-                            setEditTaskId(card.id);
-                            setEditTaskStageId(column.id);
-                            setEditTaskName(card.title);
-                            setEditTaskPriority(card.priority ?? "Medium");
-                            setEditTaskDescription(card.description ?? "");
-                            setEditTaskOpen(true);
-                          }}
-                        >
-                          Edit task
-                        </DropdownMenuItem>
-                        <DropdownMenuItem
-                          className="text-rose-600 focus:text-rose-600"
-                          onSelect={(event) => {
-                            event.stopPropagation();
-                            ignoreNextNavRef.current = true;
-                            if (!window.confirm("Yakin menghapus task ini?")) return;
-                            if (!card.taskId) return;
-                            fetch(`/api/project-tasks/${card.taskId}`, {
-                              method: "DELETE",
-                            })
-                              .then((res) => {
+                            onClick={async () => {
+                              try {
+                                const res = await fetch("/api/project-stage-approvals", {
+                                  method: "POST",
+                                  headers: { "Content-Type": "application/json" },
+                                  body: JSON.stringify({
+                                    projectId,
+                                    stageId: column.id,
+                                    status: "Pending",
+                                  }),
+                                });
                                 if (!res.ok) return;
-                                return refreshProjectData();
-                              })
-                              .catch(() => undefined)
-                              .finally(() => {
-                                if (editTaskId === card.id) {
-                                  setEditTaskOpen(false);
-                                }
-                              });
-                          }}
-                        >
-                          Delete task
-                        </DropdownMenuItem>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
-                  </div>
-                    <div className="space-y-2">
-                    <div className="flex items-center gap-2">
-                      <p
-                        className={cn(
-                          "text-sm font-semibold",
-                          isDone ? "text-slate-800" : "text-slate-900"
-                        )}
-                      >
-                        {card.title}
-                      </p>
-                    </div>
-                    {card.description ? (
-                      <p className={cn("text-xs", isDone ? "text-slate-700" : "text-slate-500")}>
-                        {card.description}
-                      </p>
-                    ) : null}
-                  </div>
-                  <div className="mt-auto flex items-center justify-between text-xs text-slate-500">
-                    <div className="flex items-center -space-x-1">
-                      {avatarStack.slice(0, 3).map((tone) => (
-                        <div
-                          key={`${card.id}-${tone}`}
-                          className={cn(
-                            "h-6 w-6 rounded-full border-2 border-white",
-                            tone
-                          )}
-                        />
-                      ))}
-                    </div>
-                    <div className="flex items-center gap-3">
-                      <button
-                        type="button"
-                        data-no-nav="true"
-                        className="flex items-center gap-1 text-slate-500 hover:text-slate-700"
-                        onClick={(event) => {
-                          event.preventDefault();
-                          event.stopPropagation();
-                          setCommentsOpen(true);
+                                await refreshProjectData();
+                              } catch {
+                                // ignore
+                              }
+                            }}
+                          >
+                            {approvalLabel}
+                          </Button>
+                          {isLocked ? (
+                            <div className="flex items-center gap-1 text-xs text-slate-400">
+                              <Lock className="size-3" />
+                              Menunggu approval stage sebelumnya
+                            </div>
+                          ) : null}
+                        </div>
+                      </div>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8"
+                        disabled={isLocked}
+                        onClick={() => {
+                          setAddTaskStage(column.title);
+                          setTaskName("");
+                          setTaskMember("Select Member");
+                          setTaskPriority("Select Priority");
+                          setTaskDueDate("");
+                          setTaskDescription("");
+                          setAddTaskOpen(true);
                         }}
                       >
-                        <MessageSquare className="size-3" />
-                        {commentsList.length} comments
-                      </button>
-                      <button
-                        type="button"
-                        data-no-nav="true"
-                        className="flex items-center gap-1 text-slate-500 hover:text-slate-700"
-                        onClick={(event) => {
-                          event.preventDefault();
-                          event.stopPropagation();
-                          setFilesOpen(true);
-                        }}
-                      >
-                        <FileText className="size-3" />
-                        {filesList.length} files
-                      </button>
-                    </div>
-                  </div>
+                        <Plus className="size-4 text-slate-500" />
+                      </Button>
                     </div>
                   );
-                })}
-            </div>
-            </section>
-          ))}
+                })()}
+
+                <div className="mt-4 space-y-4">
+                  {column.cards
+                    .map((card, index) => ({ card, index }))
+                    .sort(
+                      (a, b) =>
+                        Number(Boolean(b.card.done)) - Number(Boolean(a.card.done)) ||
+                        a.index - b.index
+                    )
+                    .map(({ card }) => {
+                      const isDone = Boolean(card.done);
+                      return (
+                        <div
+                          key={card.id}
+                          className={cn(
+                            "flex min-h-[180px] flex-col gap-3 rounded-xl border border-slate-200 bg-white p-4 shadow-sm",
+                            isDone && "bg-slate-200 opacity-50"
+                          )}
+                        >
+                          <div className="flex items-center justify-between">
+                            <span
+                              className={cn(
+                                "rounded-md px-2 py-1 text-xs font-semibold",
+                                card.priority ? priorityTone[card.priority] : "bg-slate-100 text-slate-700"
+                              )}
+                            >
+                              {card.priority ? `${card.priority} Priority` : "No Priority"}
+                            </span>
+                            <DropdownMenu>
+                              <DropdownMenuTrigger asChild>
+                                <button
+                                  type="button"
+                                  data-no-nav="true"
+                                  className="text-xs text-slate-400 hover:text-slate-600"
+                                  onClick={(event) => {
+                                    event.preventDefault();
+                                    event.stopPropagation();
+                                    ignoreNextNavRef.current = true;
+                                  }}
+                                >
+                                  •••
+                                </button>
+                              </DropdownMenuTrigger>
+                              <DropdownMenuContent align="end" className="w-36">
+                                <DropdownMenuItem
+                                  onSelect={async (event) => {
+                                    event.preventDefault();
+                                    event.stopPropagation();
+                                    ignoreNextNavRef.current = true;
+                                    const nextDone = !card.done;
+                                    const applyDoneState = (value: boolean) => {
+                                      updateColumns((source) =>
+                                        source.map((column) => {
+                                          if (!column.cards.some((item) => item.id === card.id)) {
+                                            return column;
+                                          }
+                                          const nextCards = column.cards.map((item) =>
+                                            item.id === card.id ? { ...item, done: value } : item
+                                          );
+                                          const allDone =
+                                            nextCards.length > 0 && nextCards.every((item) => item.done);
+                                          const nextStatus =
+                                            nextCards.length === 0
+                                              ? getStageIndex(column.id) === 0
+                                                ? "Active"
+                                                : "Pending"
+                                              : allDone
+                                                ? "Completed"
+                                                : "Active";
+                                          return {
+                                            ...column,
+                                            status: nextStatus,
+                                            cards: nextCards,
+                                          };
+                                        })
+                                      );
+                                    };
+                                    applyDoneState(nextDone);
+                                    const taskId = card.taskId;
+                                    if (!taskId) return;
+                                    try {
+                                      const statusCandidates = nextDone
+                                        ? ["Done", "Completed"]
+                                        : ["In Progress", "Active"];
+                                      let requestOk = false;
+                                      for (const status of statusCandidates) {
+                                        const res = await fetch(`/api/project-tasks/${taskId}`, {
+                                          method: "PATCH",
+                                          headers: { "Content-Type": "application/json" },
+                                          body: JSON.stringify({ status }),
+                                        });
+                                        if (res.ok) {
+                                          requestOk = true;
+                                          break;
+                                        }
+                                      }
+                                      if (!requestOk) {
+                                        applyDoneState(!nextDone);
+                                        await refreshProjectData({ silent: true });
+                                      }
+                                    } finally {
+                                      // no-op: keep optimistic state unless we detect a failure
+                                    }
+                                  }}
+                                >
+                                  {card.done ? "Mark as Undone" : "Mark as Done"}
+                                </DropdownMenuItem>
+                                <DropdownMenuItem
+                                  onSelect={(event) => {
+                                    event.stopPropagation();
+                                    ignoreNextNavRef.current = true;
+                                    setEditTaskId(card.id);
+                                    setEditTaskStageId(column.id);
+                                    setEditTaskName(card.title);
+                                    setEditTaskPriority(card.priority ?? "Medium");
+                                    setEditTaskDescription(card.description ?? "");
+                                    setEditTaskOpen(true);
+                                  }}
+                                >
+                                  Edit task
+                                </DropdownMenuItem>
+                                <DropdownMenuItem
+                                  className="text-rose-600 focus:text-rose-600"
+                                  onSelect={(event) => {
+                                    event.stopPropagation();
+                                    ignoreNextNavRef.current = true;
+                                    if (!window.confirm("Yakin menghapus task ini?")) return;
+                                    if (!card.taskId) return;
+                                    fetch(`/api/project-tasks/${card.taskId}`, {
+                                      method: "DELETE",
+                                    })
+                                      .then((res) => {
+                                        if (!res.ok) return;
+                                        return refreshProjectData();
+                                      })
+                                      .catch(() => undefined)
+                                      .finally(() => {
+                                        if (editTaskId === card.id) {
+                                          setEditTaskOpen(false);
+                                        }
+                                      });
+                                  }}
+                                >
+                                  Delete task
+                                </DropdownMenuItem>
+                              </DropdownMenuContent>
+                            </DropdownMenu>
+                          </div>
+                          <div className="space-y-2">
+                            <div className="flex items-center gap-2">
+                              <p
+                                className={cn(
+                                  "text-sm font-semibold",
+                                  isDone ? "text-slate-800" : "text-slate-900"
+                                )}
+                              >
+                                {card.title}
+                              </p>
+                            </div>
+                            {card.description ? (
+                              <p className={cn("text-xs", isDone ? "text-slate-700" : "text-slate-500")}>
+                                {card.description}
+                              </p>
+                            ) : null}
+                          </div>
+                          <div className="mt-auto flex items-center justify-between text-xs text-slate-500">
+                            <div className="flex items-center -space-x-1">
+                              {avatarStack.slice(0, 3).map((tone) => (
+                                <div
+                                  key={`${card.id}-${tone}`}
+                                  className={cn(
+                                    "h-6 w-6 rounded-full border-2 border-white",
+                                    tone
+                                  )}
+                                />
+                              ))}
+                            </div>
+                            <div className="flex items-center gap-3">
+                              <button
+                                type="button"
+                                data-no-nav="true"
+                                className="flex items-center gap-1 text-slate-500 hover:text-slate-700"
+                                onClick={(event) => {
+                                  event.preventDefault();
+                                  event.stopPropagation();
+                                  setCommentsOpen(true);
+                                }}
+                              >
+                                <MessageSquare className="size-3" />
+                                {commentsList.length} comments
+                              </button>
+                              <button
+                                type="button"
+                                data-no-nav="true"
+                                className="flex items-center gap-1 text-slate-500 hover:text-slate-700"
+                                onClick={(event) => {
+                                  event.preventDefault();
+                                  event.stopPropagation();
+                                  setFilesOpen(true);
+                                }}
+                              >
+                                <FileText className="size-3" />
+                                {filesList.length} files
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                </div>
+              </section>
+            ))}
+          </div>
         </div>
       )}
 
@@ -1096,8 +949,8 @@ export function ProjectBoardClient({
                   description: taskDescription.trim(),
                   priority:
                     taskPriority === "High" ||
-                    taskPriority === "Medium" ||
-                    taskPriority === "Low"
+                      taskPriority === "Medium" ||
+                      taskPriority === "Low"
                       ? (taskPriority as ColumnCard["priority"])
                       : "Medium",
                   dueDate: taskDueDate.trim() || null,
@@ -1233,11 +1086,11 @@ export function ProjectBoardClient({
                   cards: column.cards.map((card) =>
                     card.id === editTaskId
                       ? {
-                          ...card,
-                          title: editTaskName.trim(),
-                          description: editTaskDescription.trim(),
-                          priority: editTaskPriority ?? "Medium",
-                        }
+                        ...card,
+                        title: editTaskName.trim(),
+                        description: editTaskDescription.trim(),
+                        priority: editTaskPriority ?? "Medium",
+                      }
                       : card
                   ),
                 }))

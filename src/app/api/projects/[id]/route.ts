@@ -80,14 +80,15 @@ async function syncProjectMembers(
   }
 }
 
-export async function GET(request: NextRequest, context: { params: { id: string } }) {
+export async function GET(request: NextRequest, context: { params: Promise<{ id: string }> }) {
   try {
+    const { id: paramId } = await context.params;
     const normalizeId = (value?: string | null) => {
       const raw = (value ?? "").trim();
       if (!raw || raw === "undefined" || raw === "null") return "";
       return raw;
     };
-    const rawParam = context.params.id ?? "";
+    const rawParam = paramId ?? "";
     const url = new URL(request.url);
     const queryId = url.searchParams.get("id") ?? url.searchParams.get("code") ?? "";
     const targetId = normalizeId(rawParam) || normalizeId(queryId);
@@ -118,15 +119,16 @@ export async function GET(request: NextRequest, context: { params: { id: string 
   }
 }
 
-export async function PUT(request: NextRequest, context: { params: { id: string } }) {
+export async function PUT(request: NextRequest, context: { params: Promise<{ id: string }> }) {
   try {
+    const { id: paramId } = await context.params;
     const body = await request.json();
     const normalizeId = (value?: string | null) => {
       const raw = (value ?? "").trim();
       if (!raw || raw === "undefined" || raw === "null") return "";
       return raw;
     };
-    const rawParam = context.params.id ?? "";
+    const rawParam = paramId ?? "";
     const fallbackId = typeof body.id === "string" ? body.id : "";
     const fallbackCode = typeof body.code === "string" ? body.code : "";
     const targetId = normalizeId(rawParam) || normalizeId(fallbackId) || normalizeId(fallbackCode);
@@ -184,14 +186,15 @@ export async function PUT(request: NextRequest, context: { params: { id: string 
   }
 }
 
-export async function DELETE(request: NextRequest, context: { params: { id: string } }) {
+export async function DELETE(request: NextRequest, context: { params: Promise<{ id: string }> }) {
   try {
+    const { id: paramId } = await context.params;
     const normalizeId = (value?: string | null) => {
       const raw = (value ?? "").trim();
       if (!raw || raw === "undefined" || raw === "null") return "";
       return raw;
     };
-    const rawParam = context.params.id ?? "";
+    const rawParam = paramId ?? "";
     const url = new URL(request.url);
     const queryId = url.searchParams.get("id") ?? url.searchParams.get("code") ?? "";
     let bodyId = "";

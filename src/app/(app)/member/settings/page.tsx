@@ -52,7 +52,7 @@ export default async function MemberSettingsPage() {
         <MemberSidebar
           profile={profile}
           active="settings"
-          taskHref="/member/tasks/1001"
+          taskHref="/member/tasks"
           projects={memberProjects}
         />
         <main className="flex-1">

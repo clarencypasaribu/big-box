@@ -37,10 +37,11 @@ async function getUserId(request: Request) {
 
 export async function PATCH(
   request: Request,
-  context: { params: { stageId: string } }
+  context: { params: Promise<{ stageId: string }> }
 ) {
   try {
-    const stageId = String(context.params.stageId ?? "").trim();
+    const { stageId: rawStageId } = await context.params;
+    const stageId = String(rawStageId ?? "").trim();
     const body = await request.json();
     const projectId = String(body.projectId ?? "").trim();
     const status = String(body.status ?? "").trim();

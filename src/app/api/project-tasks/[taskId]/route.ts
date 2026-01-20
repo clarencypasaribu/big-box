@@ -2,23 +2,24 @@ import { NextResponse } from "next/server";
 
 import { createSupabaseServiceClient } from "@/utils/supabase-service";
 
-export async function PATCH(
-  request: Request,
-  context: { params: { taskId: string } }
-) {
+type RouteContext = {
+  params: Promise<{ taskId: string }>;
+};
+
+export async function PATCH(request: Request, context: RouteContext) {
   try {
-    const taskId = String(context.params.taskId ?? "").trim();
+    const { taskId: rawTaskId } = await context.params;
+    const taskId = String(rawTaskId ?? "").trim();
     if (!taskId) {
       return NextResponse.json({ message: "Task id wajib ada" }, { status: 400 });
     }
 
     const body = await request.json();
-    const payload = {
-      title: body.title ? String(body.title).trim() : undefined,
-      description: body.description ? String(body.description) : undefined,
-      priority: body.priority ? String(body.priority) : undefined,
-      status: body.status ? String(body.status) : undefined,
-    };
+    const payload: Record<string, string | undefined> = {};
+    if (body.title !== undefined) payload.title = String(body.title).trim();
+    if (body.description !== undefined) payload.description = String(body.description);
+    if (body.priority !== undefined) payload.priority = String(body.priority);
+    if (body.status !== undefined) payload.status = String(body.status);
 
     const supabase = await createSupabaseServiceClient({ allowWrite: true });
     const { data, error } = await supabase
@@ -38,12 +39,10 @@ export async function PATCH(
   }
 }
 
-export async function DELETE(
-  _request: Request,
-  context: { params: { taskId: string } }
-) {
+export async function DELETE(_request: Request, context: RouteContext) {
   try {
-    const taskId = String(context.params.taskId ?? "").trim();
+    const { taskId: rawTaskId } = await context.params;
+    const taskId = String(rawTaskId ?? "").trim();
     if (!taskId) {
       return NextResponse.json({ message: "Task id wajib ada" }, { status: 400 });
     }

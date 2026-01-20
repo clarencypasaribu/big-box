@@ -1,6 +1,8 @@
 "use client";
 
 import Link from "next/link";
+import { useMemo } from "react";
+import { usePathname, useRouter } from "next/navigation";
 import {
   CheckSquare,
   MoreHorizontal,
@@ -37,9 +39,20 @@ export function MemberSidebar({
   active,
   taskHref,
   projects = fallbackProjects,
-  projectHrefBase = "/member/projects",
+  projectHrefBase = "/member/project",
   activeProjectId = null,
 }: MemberSidebarProps) {
+  const pathname = usePathname();
+  const router = useRouter();
+  const derivedProjectId = useMemo(() => {
+    if (!pathname) return null;
+    const match =
+      pathname.match(/^\/member\/project\/([^/]+)/) ??
+      pathname.match(/^\/member\/projects\/([^/]+)/);
+    return match?.[1] ?? null;
+  }, [pathname]);
+  const resolvedActiveProjectId = activeProjectId ?? derivedProjectId;
+
   return (
     <aside className="flex min-h-[90vh] w-[230px] flex-col justify-between rounded-xl border border-slate-200 bg-white px-5 py-6">
       <div className="space-y-6">
@@ -93,28 +106,35 @@ export function MemberSidebar({
             My Projects
           </p>
           <div className="space-y-2">
-            {projects.map((project) => (
-              <Link
-                key={project.id}
-                href={`${projectHrefBase}/${project.id}`}
-                className={cn(
-                  "flex items-center gap-3 rounded-lg px-2 py-1 text-slate-700 hover:bg-slate-100",
-                  project.id === activeProjectId && "bg-[#e8defe] text-[#2f1c70]"
-                )}
-              >
-                <span
+            {projects.map((project) => {
+              const href = `${projectHrefBase}/${encodeURIComponent(project.id)}`;
+              return (
+                <button
+                  key={project.id}
+                  type="button"
                   className={cn(
-                    "size-2 rounded-full",
-                    project.color === "green" && "bg-emerald-500",
-                    project.color === "blue" && "bg-blue-500",
-                    project.color === "purple" && "bg-purple-500",
-                    project.color === "amber" && "bg-amber-500"
+                    "relative z-10 flex w-full items-center gap-3 rounded-lg px-2 py-1 text-left text-slate-700 hover:bg-slate-100",
+                    project.id === resolvedActiveProjectId && "bg-[#e8defe] text-[#2f1c70]"
                   )}
-                />
-                <span className="flex-1 text-left text-sm">{project.name}</span>
-                <MoreHorizontal className="size-4 text-slate-400" />
-              </Link>
-            ))}
+                  onClick={() => {
+                    router.push(href);
+                    router.refresh();
+                  }}
+                >
+                  <span
+                    className={cn(
+                      "size-2 rounded-full",
+                      project.color === "green" && "bg-emerald-500",
+                      project.color === "blue" && "bg-blue-500",
+                      project.color === "purple" && "bg-purple-500",
+                      project.color === "amber" && "bg-amber-500"
+                    )}
+                  />
+                  <span className="flex-1 text-left text-sm">{project.name}</span>
+                  <MoreHorizontal className="size-4 text-slate-400" />
+                </button>
+              );
+            })}
           </div>
         </div>
       </div>

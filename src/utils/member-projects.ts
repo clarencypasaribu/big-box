@@ -10,8 +10,9 @@ export async function getMemberProjects(userId: string | null): Promise<MemberPr
     const supabase = await createSupabaseServiceClient();
     const { data, error } = await supabase
       .from("project_members")
-      .select("project_id, projects ( id, name )")
-      .eq("member_id", userId);
+      .select("project_id, created_at, projects ( id, name, created_at )")
+      .eq("member_id", userId)
+      .order("created_at", { ascending: true });
 
     if (error) {
       return [];
@@ -32,10 +33,11 @@ export async function getMemberProjects(userId: string | null): Promise<MemberPr
             color: projectColors[index % projectColors.length],
           };
         })
-        .filter(Boolean) ?? [];
+        .filter((item): item is MemberProjectItem => item !== null) ?? [];
 
     return projects;
   } catch {
     return [];
   }
 }
+
