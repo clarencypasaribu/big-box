@@ -5,10 +5,12 @@ console.log(
   process.env.SUPABASE_SERVICE_ROLE_KEY ? "SRK OK" : "SRK MISSING"
 );
 
-export async function createSupabaseServiceClient() {
+export async function createSupabaseServiceClient(
+  options?: Parameters<typeof createSupabaseServerClient>[0]
+) {
   if (process.env.NEXT_PUBLIC_SUPABASE_URL && process.env.SUPABASE_SERVICE_ROLE_KEY) {
     return createSupabaseAdminClient();
   }
 
-  return createSupabaseServerClient();
+  return createSupabaseServerClient(options);
 }

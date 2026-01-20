@@ -1,7 +1,8 @@
-import { MemberSidebar, type MemberProjectItem } from "@/components/member-sidebar";
+import { MemberSidebar } from "@/components/member-sidebar";
 import { getCurrentUserProfile } from "@/utils/current-user";
 import { createSupabaseServerClient } from "@/utils/supabase-server";
 import { SettingsClient } from "./settings-client";
+import { getMemberProjects } from "@/utils/member-projects";
 
 export default async function MemberSettingsPage() {
   const profile = await getCurrentUserProfile();
@@ -43,9 +44,7 @@ export default async function MemberSettingsPage() {
     };
   }
 
-  const memberProjects: MemberProjectItem[] = [
-    { id: "mobile", name: "Mobile App", color: "green" },
-  ];
+  const memberProjects = await getMemberProjects(profile.id);
 
   return (
     <div className="min-h-screen bg-[#f7f7f9] text-slate-900">

@@ -45,8 +45,23 @@ model Project {
   endDate     DateTime? @map("end_date") @db.Date
   teamMembers String[]  @map("team_members")
   tasks       Task[]
+  members     ProjectMember[]
 
   @@map("projects")
+  @@schema("public")
+}
+
+model ProjectMember {
+  id        String  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  projectId String  @map("project_id") @db.Uuid
+  memberId  String  @map("member_id") @db.Uuid
+  role      String?
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  project   Project @relation(fields: [projectId], references: [id])
+
+  @@unique([projectId, memberId], map: "project_members_project_id_member_id_key")
+  @@map("project_members")
   @@schema("public")
 }
 

@@ -12,10 +12,11 @@ import { Input } from "@/components/ui/input";
 import { Separator } from "@/components/ui/separator";
 import { cn } from "@/lib/utils";
 import { getCurrentUserProfile } from "@/utils/current-user";
-import { MemberSidebar, type MemberProjectItem } from "@/components/member-sidebar";
+import { MemberSidebar } from "@/components/member-sidebar";
 import { QuickActionsClient } from "./quick-actions-client";
 import { StatsCardsClient } from "./stats-cards-client";
 import { UrgentTasksClient } from "./urgent-tasks-client";
+import { getMemberProjects } from "@/utils/member-projects";
 
 type Notification = {
   title: string;
@@ -48,12 +49,9 @@ const notifications: Notification[] = [
   },
 ];
 
-const memberProjects: MemberProjectItem[] = [
-  { id: "mobile", name: "Mobile App", color: "green" },
-];
-
 export default async function MemberDashboardPage() {
   const profile = await getCurrentUserProfile();
+  const memberProjects = await getMemberProjects(profile.id);
   return (
     <div className="min-h-screen bg-[#f7f7f9] text-slate-900">
       <div className="mx-auto flex max-w-screen-2xl gap-6 px-4 py-8 lg:px-8">

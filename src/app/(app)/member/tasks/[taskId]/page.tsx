@@ -1,6 +1,6 @@
 import { getCurrentUserProfile } from "@/utils/current-user";
 import { TaskDetailClient } from "./task-detail-client";
-import type { MemberProjectItem } from "@/components/member-sidebar";
+import { getMemberProjects } from "@/utils/member-projects";
 
 interface TaskPageProps {
   params: { taskId: string };
@@ -8,9 +8,7 @@ interface TaskPageProps {
 
 export default async function MemberTaskDetailPage({ params }: TaskPageProps) {
   const profile = await getCurrentUserProfile();
-  const memberProjects: MemberProjectItem[] = [
-    { id: "mobile", name: "Mobile App", color: "green" },
-  ];
+  const memberProjects = await getMemberProjects(profile.id);
 
   return (
     <TaskDetailClient

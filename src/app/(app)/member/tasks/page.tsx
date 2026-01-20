@@ -1,13 +1,11 @@
-import { MemberSidebar, type MemberProjectItem } from "@/components/member-sidebar";
+import { MemberSidebar } from "@/components/member-sidebar";
 import { getCurrentUserProfile } from "@/utils/current-user";
 import { AllTasksClient } from "./all-tasks-client";
-
-const memberProjects: MemberProjectItem[] = [
-  { id: "mobile", name: "Mobile App", color: "green" },
-];
+import { getMemberProjects } from "@/utils/member-projects";
 
 export default async function MemberTasksPage() {
   const profile = await getCurrentUserProfile();
+  const memberProjects = await getMemberProjects(profile.id);
 
   return (
     <div className="min-h-screen bg-[#f7f7f9] text-slate-900">

@@ -32,7 +32,7 @@ import {
 import { supabase } from "@/utils/supabase";
 
 export type ProjectRow = {
-  id?: string | null; // we store uuid here for routing
+  id?: string | null; // project id for routing
   name: string;
   code?: string | null;
   location: string;
@@ -63,7 +63,8 @@ type ProjectFormState = {
 const statusOptions: ProjectRow["status"][] = ["In Progress", "Completed", "Not Started", "Pending"];
 
 const defaultTeamOptions = [
-  "Eliza Talent",
+  "Eliza Sirait",
+  "Claren Pas",
   "Sarah Jenkins",
   "Lina Hartono",
   "Rafi Mahendra",
@@ -97,7 +98,24 @@ function formatDate(iso?: string | null) {
 
 export function ProjectsClient({ initialProjects }: { initialProjects: ProjectRow[] }) {
   const router = useRouter();
-  const [projects, setProjects] = useState<ProjectRow[]>(initialProjects);
+  const normalizeId = (value?: string | null) => {
+    const raw = (value ?? "").trim();
+    if (!raw || raw === "undefined" || raw === "null") return "";
+    return raw;
+  };
+  const ensureProjectId = (items: ProjectRow[]) => {
+    let changed = false;
+    const next = items.map((project) => {
+      const normalized = normalizeId(project.id) || normalizeId(project.code) || null;
+      if (normalized !== (project.id ?? null)) {
+        changed = true;
+        return { ...project, id: normalized };
+      }
+      return project;
+    });
+    return changed ? next : items;
+  };
+  const [projects, setProjects] = useState<ProjectRow[]>(() => ensureProjectId(initialProjects));
   const [loading, setLoading] = useState(!initialProjects.length);
   const [error, setError] = useState<string | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -131,6 +149,39 @@ export function ProjectsClient({ initialProjects }: { initialProjects: ProjectRo
     }
   }, [initialProjects.length]);
 
+  useEffect(() => {
+    if (projects.length && projects.some((project) => !project.id && !project.code)) {
+      fetchProjects();
+    }
+  }, [projects]);
+
+  useEffect(() => {
+    async function loadTeamOptions() {
+      try {
+        const res = await fetch("/api/profiles");
+        if (!res.ok) return;
+        const body = await res.json();
+        const names =
+          body.data
+            ?.map((row: any) => row.full_name || row.email)
+            .filter(Boolean) ?? [];
+        if (names.length) {
+          setTeamOptions((prev) => Array.from(new Set([...names, ...prev])));
+        }
+      } catch {
+        // Fallback to static list.
+      }
+    }
+
+    loadTeamOptions();
+  }, []);
+
+  useEffect(() => {
+    if (dialogMode === "edit" && !editId && form.code.trim()) {
+      setEditId(form.code.trim());
+    }
+  }, [dialogMode, editId, form.code]);
+
   async function fetchProjects() {
     setLoading(true);
     setError(null);
@@ -143,7 +194,7 @@ export function ProjectsClient({ initialProjects }: { initialProjects: ProjectRo
       const body = await res.json();
       const rows: ProjectRow[] =
         body.data?.map((row: any) => ({
-          id: row.uuid ?? row.id ?? null,
+          id: normalizeId(row.id) || normalizeId(row.code) || null,
           name: row.name ?? "Untitled Project",
           code: row.code ?? "",
           location: row.location ?? "",
@@ -187,7 +238,12 @@ export function ProjectsClient({ initialProjects }: { initialProjects: ProjectRo
   }
 
   function openEditDialog(project: ProjectRow) {
-    setEditId(project.id ?? null);
+    const nextId = normalizeId(project.id) || normalizeId(project.code) || null;
+    if (!nextId) {
+      setError("Project id wajib ada untuk edit.");
+      return;
+    }
+    setEditId(nextId);
     setDialogMode("edit");
     setTeamOptions((prev) => {
       const merged = new Set([...prev, ...(project.teamMembers || []), project.lead].filter(Boolean));
@@ -210,12 +266,13 @@ export function ProjectsClient({ initialProjects }: { initialProjects: ProjectRo
   }
 
   function goToDetail(project: ProjectRow) {
-    const slug = project.id || project.code;
+    const slug = normalizeId(project.id) || normalizeId(project.code);
     if (!slug) {
       setError("Project tidak punya ID atau code untuk dibuka.");
       return;
     }
-    router.push(`/pm/projects/${slug}`);
+    const encoded = encodeURIComponent(slug);
+    router.push(`/pm/projects/${encoded}?id=${encoded}`);
   }
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
@@ -223,13 +280,20 @@ export function ProjectsClient({ initialProjects }: { initialProjects: ProjectRo
     setSaving(true);
     setError(null);
 
+    const isEdit = dialogMode === "edit";
+    const safeEditId = isEdit ? normalizeId(editId) || normalizeId(form.code) : "";
     const payload = {
       ...form,
+      id: isEdit ? safeEditId || undefined : undefined,
       progress: Number(form.progress) || 0,
     };
-
-    const endpoint = editId ? `/api/projects/${editId}` : "/api/projects";
-    const method = editId ? "PUT" : "POST";
+    if (isEdit && !safeEditId) {
+      setSaving(false);
+      setError("Project id wajib ada untuk edit.");
+      return;
+    }
+    const endpoint = isEdit ? `/api/projects/${safeEditId}` : "/api/projects";
+    const method = isEdit ? "PUT" : "POST";
 
     const token = await supabase.auth.getSession().then((res) => res.data.session?.access_token);
     const authHeader: HeadersInit = token ? { Authorization: `Bearer ${token}` } : {};
@@ -246,7 +310,7 @@ export function ProjectsClient({ initialProjects }: { initialProjects: ProjectRo
       const body = await res.json();
       const saved: any = body.data;
       const normalized: ProjectRow = {
-        id: saved?.uuid ?? saved?.id ?? null,
+        id: normalizeId(saved?.id) || normalizeId(saved?.code) || null,
         name: saved?.name ?? payload.name,
         code: saved?.code ?? payload.code,
         location: saved?.location ?? payload.location,
@@ -263,7 +327,10 @@ export function ProjectsClient({ initialProjects }: { initialProjects: ProjectRo
 
       setProjects((prev) => {
         if (editId) {
-          return prev.map((item) => (item.id === editId ? { ...item, ...normalized } : item));
+          const targetId = normalizeId(editId);
+          return prev.map((item) =>
+            normalizeId(item.id) === targetId ? { ...item, ...normalized } : item
+          );
         }
         return [normalized, ...prev];
       });
@@ -276,22 +343,32 @@ export function ProjectsClient({ initialProjects }: { initialProjects: ProjectRo
     }
   }
 
-  async function handleDelete(id?: string | null) {
-    if (!id) return;
-    setDeletingId(id);
+  async function handleDelete(id?: string | null, code?: string | null) {
+    const targetId = normalizeId(id) || normalizeId(code);
+    if (!targetId) {
+      setError("Project id wajib ada untuk delete.");
+      return;
+    }
+    setDeletingId(targetId);
     setError(null);
     const token = await supabase.auth.getSession().then((res) => res.data.session?.access_token);
     const authHeader: HeadersInit = token ? { Authorization: `Bearer ${token}` } : {};
     try {
-      const res = await fetch(`/api/projects/${id}`, {
+      const res = await fetch(`/api/projects/${targetId}?id=${encodeURIComponent(targetId)}`, {
         method: "DELETE",
-        headers: authHeader as any,
+        headers: { ...(authHeader as any), "Content-Type": "application/json" },
+        body: JSON.stringify({ id: targetId, code: normalizeId(code) }),
       });
       if (!res.ok) {
         const body = await res.json().catch(() => ({}));
         throw new Error(body.message || "Gagal menghapus project");
       }
-      setProjects((prev) => prev.filter((item) => item.id !== id));
+      setProjects((prev) =>
+        prev.filter(
+          (item) =>
+            normalizeId(item.id) !== targetId && normalizeId(item.code) !== targetId
+        )
+      );
     } catch (error) {
       setError(error instanceof Error ? error.message : "Gagal menghapus project");
     } finally {
@@ -416,8 +493,8 @@ export function ProjectsClient({ initialProjects }: { initialProjects: ProjectRo
                       </DropdownMenuItem>
                       <DropdownMenuItem
                         className="gap-2 text-rose-600 focus:text-rose-700"
-                        onClick={() => handleDelete(project.id)}
-                        disabled={deletingId === project.id}
+                        onClick={() => handleDelete(project.id, project.code ?? null)}
+                        disabled={deletingId === (project.id ?? "").trim()}
                       >
                         {deletingId === project.id ? (
                           <Loader2 className="size-4 animate-spin" />

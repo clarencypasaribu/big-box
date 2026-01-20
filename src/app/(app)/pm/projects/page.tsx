@@ -21,7 +21,7 @@ async function loadProjects(): Promise<ProjectRow[]> {
     const { data, error } = await supabase
       .from("projects")
       .select(
-        "id,uuid,code,name,location,status,progress,lead,icon_bg,description,start_date,end_date,team_members,updated_at,created_at"
+        "id,code,name,location,status,progress,lead,icon_bg,description,start_date,end_date,team_members,updated_at,created_at"
       )
       .order("updated_at", { ascending: false })
       .order("created_at", { ascending: false });
@@ -32,7 +32,7 @@ async function loadProjects(): Promise<ProjectRow[]> {
 
     return (
       data?.map((row: any) => ({
-        id: row.uuid ?? row.id ?? null,
+        id: typeof row.id === "string" && row.id.trim() ? row.id : row.code ?? null,
         name: row.name ?? "Untitled Project",
         code: row.code ?? "",
         location: row.location ?? "",
