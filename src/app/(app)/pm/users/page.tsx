@@ -1,43 +1,81 @@
-import Link from "next/link";
 import { Eye, Folder, Search, ShieldOff, User, X } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { UsersTableClient, type UserRow } from "@/app/(app)/pm/users/users-table-client";
 import { PMSidebar } from "@/app/(app)/pm/_components/sidebar";
 import { getCurrentUserProfile } from "@/utils/current-user";
+import { createSupabaseServiceClient } from "@/utils/supabase-service";
 
-type UserRow = {
-  name: string;
-  email: string;
-  role: string;
-  status: "Active" | "Inactive";
-};
-
-const navItems = [
-  { label: "Dashboard", href: "/pm/dashboard" },
-  { label: "Projects", href: "/pm/projects" },
-  { label: "Approvals", href: "/pm/approvals" },
-  { label: "Risks & Blockers", href: "/pm/risks" },
-  { label: "Users", href: "/pm/users", active: true },
-];
-
-const users: UserRow[] = [
-  { name: "Anima Eliza", email: "animaeliza@gmail.com", role: "Team Member", status: "Active" },
-  { name: "Anima", email: "anima@gmail.com", role: "Team Member", status: "Active" },
-  { name: "Anima", email: "anima@gmail.com", role: "Team Member", status: "Inactive" },
-  { name: "Anima", email: "anima@gmail.com", role: "Team member", status: "Active" },
-  { name: "Anima", email: "anima@gmail.com", role: "Team member", status: "Active" },
-];
+export const dynamic = "force-dynamic";
 
 const statusColor: Record<UserRow["status"], string> = {
-  Active: "bg-amber-50 text-amber-700",
+  Active: "bg-emerald-50 text-emerald-700",
   Inactive: "bg-slate-200 text-slate-700",
 };
 
+async function loadUsersFromDb(): Promise<{ users: UserRow[]; error?: string | null; supportsStatus: boolean }> {
+  try {
+    const supabase = await createSupabaseServiceClient({ allowWrite: true });
+    let supportsStatus = true;
+    let data: any[] | null = null;
+
+    const firstAttempt = await supabase
+      .from("profiles")
+      .select("id,full_name,email,role,is_active,updated_at")
+      .order("full_name", { ascending: true });
+
+    if (firstAttempt.error) {
+      if (firstAttempt.error.message.toLowerCase().includes("is_active")) {
+        supportsStatus = false;
+        const fallback = await supabase
+          .from("profiles")
+          .select("id,full_name,email,role,updated_at")
+          .order("full_name", { ascending: true });
+        if (fallback.error) {
+          console.error("Gagal memuat profiles:", fallback.error.message);
+          return { users: [], error: fallback.error.message, supportsStatus };
+        }
+        data = fallback.data ?? [];
+      } else {
+        console.error("Gagal memuat profiles:", firstAttempt.error.message);
+        return { users: [], error: firstAttempt.error.message, supportsStatus };
+      }
+    } else {
+      data = firstAttempt.data ?? [];
+    }
+
+    const users: UserRow[] = (data ?? []).map((row: any) => {
+      const id = String(row.id ?? "").trim();
+      const rawStatus = row.is_active;
+      const isActive = supportsStatus
+        ? rawStatus === true || rawStatus === "true" || rawStatus === 1 || rawStatus === "1"
+        : !!row.updated_at;
+      return {
+        id,
+        name: row.full_name || row.email || "User",
+        email: row.email || "-",
+        role: row.role || null,
+        status: isActive ? "Active" : "Inactive",
+      };
+    });
+
+    return { users, error: null, supportsStatus };
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "Gagal memuat profiles";
+    console.error(message);
+    return { users: [], error: message, supportsStatus: false };
+  }
+}
+
 export default async function PMUsersPage() {
   const profile = await getCurrentUserProfile();
+  const { users, error, supportsStatus } = await loadUsersFromDb();
+  const activeCount = users.filter((user) => user.status === "Active").length;
+  const inactiveCount = users.filter((user) => user.status === "Inactive").length;
+
   return (
     <div className="min-h-screen bg-[#f7f7f9] text-slate-900">
       <div className="mx-auto flex max-w-screen-2xl gap-6 px-4 py-8 lg:px-8">
@@ -53,7 +91,7 @@ export default async function PMUsersPage() {
               <CardContent className="flex items-center justify-between gap-4 p-5">
                 <div className="space-y-1">
                   <p className="text-sm text-slate-600">Active</p>
-                  <p className="text-3xl font-semibold text-slate-900">30</p>
+                  <p className="text-3xl font-semibold text-slate-900">{activeCount}</p>
                 </div>
                 <div className="grid size-12 place-items-center rounded-lg bg-emerald-50 text-emerald-700">
                   <User className="size-5" />
@@ -64,7 +102,7 @@ export default async function PMUsersPage() {
               <CardContent className="flex items-center justify-between gap-4 p-5">
                 <div className="space-y-1">
                   <p className="text-sm text-slate-600">Inactive</p>
-                  <p className="text-3xl font-semibold text-slate-900">5</p>
+                  <p className="text-3xl font-semibold text-slate-900">{inactiveCount}</p>
                 </div>
                 <div className="grid size-12 place-items-center rounded-lg bg-rose-50 text-rose-700">
                   <ShieldOff className="size-5" />
@@ -72,6 +110,12 @@ export default async function PMUsersPage() {
               </CardContent>
             </Card>
           </div>
+
+          {error ? (
+            <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+              Gagal memuat user: {error}
+            </div>
+          ) : null}
 
           <div className="flex flex-col gap-3 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
             <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
@@ -93,36 +137,7 @@ export default async function PMUsersPage() {
               </div>
             </div>
 
-            <div className="overflow-hidden rounded-xl border border-slate-200">
-              <div className="grid grid-cols-[1.4fr,1.4fr,1fr,1fr,0.6fr] bg-slate-50 px-5 py-3 text-xs font-semibold uppercase tracking-wide text-slate-500">
-                <div>User Name</div>
-                <div>Email</div>
-                <div>Role</div>
-                <div>Status</div>
-                <div className="text-center">Actions</div>
-              </div>
-              <div className="divide-y divide-slate-200">
-                {users.map((user, idx) => (
-                  <div
-                    key={`${user.email}-${idx}`}
-                    className="grid grid-cols-[1.4fr,1.4fr,1fr,1fr,0.6fr] items-center px-5 py-4 text-sm text-slate-800"
-                  >
-                    <div className="font-semibold">{user.name}</div>
-                    <div className="text-slate-600">{user.email}</div>
-                    <div className="text-slate-700">{user.role}</div>
-                    <div>
-                      <Badge className={`rounded-md ${statusColor[user.status]}`}>
-                        {user.status}
-                      </Badge>
-                    </div>
-                    <div className="flex items-center justify-center gap-4 text-slate-600">
-                      <Eye className="size-5" />
-                      <X className="size-5" />
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
+            <UsersTableClient initialUsers={users} supportsStatus={supportsStatus} />
           </div>
         </main>
       </div>

@@ -12,6 +12,11 @@ function getBearerToken(request: Request) {
   return token || null;
 }
 
+function hasSupabaseAuthCookie(request: Request) {
+  const cookieHeader = request.headers.get("cookie") || "";
+  return cookieHeader.includes("sb-") || cookieHeader.includes("supabase-auth-token");
+}
+
 async function getUserId(request: Request) {
   const token = getBearerToken(request);
   if (token) {
@@ -35,6 +40,8 @@ async function getUserId(request: Request) {
       if (!error && data.user?.id) return data.user.id;
     }
   }
+
+  if (!hasSupabaseAuthCookie(request)) return null;
 
   try {
     const supabase = await createSupabaseServerClient({ allowWrite: true });

@@ -466,6 +466,46 @@ export function ProjectDetailClient({ projectId }: ProjectDetailClientProps) {
       </div>
 
       <Card className="border-slate-200 shadow-sm">
+        <CardContent className="space-y-4 p-5">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <h2 className="text-lg font-semibold text-slate-900">Task Team Member per Stage</h2>
+              <p className="text-xs text-slate-500">Tugas yang diajukan anggota tim untuk setiap stage.</p>
+            </div>
+          </div>
+          <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
+            {tasksByStage.map((stage) => (
+              <div key={stage.id} className="space-y-3 rounded-lg border border-slate-200 bg-white p-3">
+                <div className="flex items-center justify-between">
+                  <p className="text-sm font-semibold text-slate-900">{stage.label}</p>
+                  <Badge className="rounded-full bg-slate-100 text-slate-700">{stage.tasks.length} task</Badge>
+                </div>
+                {stage.tasks.length === 0 ? (
+                  <p className="text-xs text-slate-500">Belum ada task dari team member.</p>
+                ) : (
+                  <div className="space-y-2">
+                    {stage.tasks.map((task) => (
+                      <div
+                        key={task.id}
+                        className="rounded-lg border border-slate-100 bg-slate-50 px-3 py-2 text-sm text-slate-800"
+                      >
+                        <p className="font-semibold text-slate-900">{task.title}</p>
+                        <div className="flex flex-wrap items-center gap-2 text-xs text-slate-600">
+                          <span>Assignee: {task.assignee || "Unassigned"}</span>
+                          <span className="h-3 w-px bg-slate-300" aria-hidden />
+                          <span>Status: {task.status}</span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card className="border-slate-200 shadow-sm">
         <CardContent className="p-6">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>

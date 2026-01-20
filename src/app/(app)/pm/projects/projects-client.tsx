@@ -123,6 +123,7 @@ export function ProjectsClient({ initialProjects }: { initialProjects: ProjectRo
   const [saving, setSaving] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [editId, setEditId] = useState<string | null>(null);
+  const [leadOptions, setLeadOptions] = useState<string[]>([]);
   const [teamOptions, setTeamOptions] = useState<string[]>(defaultTeamOptions);
   const [newMember, setNewMember] = useState("");
   const [teamSearch, setTeamSearch] = useState("");
@@ -161,13 +162,24 @@ export function ProjectsClient({ initialProjects }: { initialProjects: ProjectRo
         const res = await fetch("/api/profiles");
         if (!res.ok) return;
         const body = await res.json();
-        const names =
-          body.data
-            ?.map((row: any) => row.full_name || row.email)
-            .filter(Boolean) ?? [];
-        if (names.length) {
-          setTeamOptions((prev) => Array.from(new Set([...names, ...prev])));
-        }
+        const raw = body.data ?? [];
+        const leadNames = new Set<string>();
+        const memberNames = new Set<string>();
+
+        raw.forEach((row: any) => {
+          const name = row.full_name || row.email || row.id;
+          if (!name) return;
+          const role = String(row.role ?? "").toLowerCase().trim();
+          const isLead = role === "project manager" || role === "project_manager" || role === "pm";
+          const isMember = role === "team member" || role === "team_member";
+          if (isLead) leadNames.add(name);
+          else if (isMember) memberNames.add(name);
+        });
+
+        const leadList = Array.from(leadNames);
+        const memberList = Array.from(memberNames);
+        setLeadOptions(leadList);
+        setTeamOptions(memberList.length ? memberList : defaultTeamOptions);
       } catch {
         // Fallback to static list.
       }
@@ -181,6 +193,12 @@ export function ProjectsClient({ initialProjects }: { initialProjects: ProjectRo
       setEditId(form.code.trim());
     }
   }, [dialogMode, editId, form.code]);
+
+  useEffect(() => {
+    if (!form.lead && leadOptions.length) {
+      setForm((prev) => ({ ...prev, lead: prev.lead || leadOptions[0] }));
+    }
+  }, [leadOptions, form.lead]);
 
   async function fetchProjects() {
     setLoading(true);
@@ -249,13 +267,17 @@ export function ProjectsClient({ initialProjects }: { initialProjects: ProjectRo
       const merged = new Set([...prev, ...(project.teamMembers || []), project.lead].filter(Boolean));
       return Array.from(merged);
     });
+    setLeadOptions((prev) => {
+      if (project.lead && !prev.includes(project.lead)) return [...prev, project.lead];
+      return prev;
+    });
     setForm({
       name: project.name || "",
       code: project.code || "",
       location: project.location || "",
       status: project.status,
       progress: project.progress ?? 0,
-      lead: project.lead || "",
+      lead: project.lead || leadOptions[0] || "",
       description: project.description || "",
       startDate: project.startDate || "",
       endDate: project.endDate || "",
@@ -615,10 +637,10 @@ export function ProjectsClient({ initialProjects }: { initialProjects: ProjectRo
                   className="h-10 w-full rounded-md border border-slate-200 bg-white px-3 text-sm text-slate-800 shadow-sm outline-none focus:border-indigo-500 focus:ring-4 focus:ring-indigo-100"
                   value={form.lead}
                   onChange={(e) => setForm((prev) => ({ ...prev, lead: e.target.value }))}
-                  disabled={isViewMode}
+                  disabled={isViewMode || leadOptions.length === 0}
                 >
-                  <option value="">Pilih Lead</option>
-                  {teamOptions.map((member) => (
+                  <option value="">{leadOptions.length ? "Pilih Lead" : "Tidak ada Project Manager"}</option>
+                  {leadOptions.map((member) => (
                     <option key={member} value={member}>
                       {member}
                     </option>
