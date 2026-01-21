@@ -59,13 +59,19 @@ function formatDate(value?: string | null) {
   }).format(date);
 }
 
-async function loadApprovalsFromDb(): Promise<{ approvals: ApprovalRow[]; error?: string | null }> {
+async function loadApprovalsFromDb(): Promise<{ approvals: ApprovalRow[]; stats: Stat[]; error?: string | null }> {
   const hasSupabaseEnv =
     process.env.NEXT_PUBLIC_SUPABASE_URL &&
     (process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY);
 
+  const defaultStats = [
+    { label: "Ready for review", value: 0, icon: CheckCircle2, accent: "bg-emerald-50 text-emerald-700" },
+    { label: "Task Pending", value: 0, icon: AlarmClock, accent: "bg-amber-50 text-amber-700" },
+    { label: "Avg. Velocity", value: "4.2 days", icon: AlarmClock, accent: "bg-indigo-50 text-indigo-700" },
+  ];
+
   if (!hasSupabaseEnv) {
-    return { approvals: [], error: "Supabase env belum diset, melewati fetch approvals." };
+    return { approvals: [], stats: defaultStats, error: "Supabase env belum diset, melewati fetch approvals." };
   }
 
   try {
@@ -74,6 +80,7 @@ async function loadApprovalsFromDb(): Promise<{ approvals: ApprovalRow[]; error?
     const [
       { data: projects, error: projectsError },
       { data: approvals, error: approvalsError },
+      { data: tasks, error: tasksError },
     ] = await Promise.all([
       supabase
         .from("projects")
@@ -82,9 +89,10 @@ async function loadApprovalsFromDb(): Promise<{ approvals: ApprovalRow[]; error?
       supabase
         .from("project_stage_approvals")
         .select("project_id,stage_id,status,requested_by,approved_by,approved_at,created_at"),
+      supabase.from("tasks").select("id,project_id,status"),
     ]);
 
-    const errMessage = projectsError?.message || approvalsError?.message || null;
+    const errMessage = projectsError?.message || approvalsError?.message || tasksError?.message || null;
 
     const profileIds = new Set<string>();
     (approvals ?? []).forEach((row) => {
@@ -111,48 +119,66 @@ async function loadApprovalsFromDb(): Promise<{ approvals: ApprovalRow[]; error?
       return acc;
     }, {});
 
-    const approvalsMapped = (projects ?? []).map((project) => {
-      const stageApprovals = approvalsByProject[project.id] ?? [];
-      const normalizedStatuses = stageApprovals.map((row) => ({
-        stageId: normalizeStageId(row.stage_id),
-        status: row.status ?? "Pending",
-        requestedBy: row.requested_by,
-        approvedBy: row.approved_by,
-      }));
+    const tasksByProject = (tasks ?? []).reduce<Record<string, number>>((acc, row) => {
+      acc[row.project_id] = (acc[row.project_id] || 0) + 1;
+      return acc;
+    }, {});
 
-      const firstPendingStage =
-        normalizedStatuses.find((row) => row.status !== "Approved")?.stageId ??
-        (normalizedStatuses.length ? stageOrder[stageOrder.length - 1] : stageOrder[0]);
-      const stageText = stageLabel(firstPendingStage);
+    // Calculate Stats
+    const readyForReviewCount = (approvals ?? []).filter((a) => a.status === "Pending").length;
+    const pendingTaskCount = (tasks ?? []).filter((t) => t.status !== "Completed" && t.status !== "Done").length;
 
-      const approvers = new Set<string>();
-      normalizedStatuses.forEach((row) => {
-        if (row.requestedBy && profileMap[row.requestedBy]) approvers.add(profileMap[row.requestedBy]);
-        if (row.approvedBy && profileMap[row.approvedBy]) approvers.add(profileMap[row.approvedBy]);
+    const dbStats: Stat[] = [
+      { label: "Ready for review", value: readyForReviewCount, icon: CheckCircle2, accent: "bg-emerald-50 text-emerald-700" },
+      { label: "Task Pending", value: pendingTaskCount, icon: AlarmClock, accent: "bg-amber-50 text-amber-700" },
+      { label: "Avg. Velocity", value: "4.2 days", icon: AlarmClock, accent: "bg-indigo-50 text-indigo-700" }, // Placeholder for now
+    ];
+
+    const approvalsMapped = (projects ?? [])
+      .filter((project) => (tasksByProject[project.id] ?? 0) > 0) // Filter projects without tasks
+      .map((project) => {
+        const stageApprovals = approvalsByProject[project.id] ?? [];
+        const normalizedStatuses = stageApprovals.map((row) => ({
+          stageId: normalizeStageId(row.stage_id),
+          status: row.status ?? "Pending",
+          requestedBy: row.requested_by,
+          approvedBy: row.approved_by,
+        }));
+
+        const firstPendingStage =
+          normalizedStatuses.find((row) => row.status !== "Approved")?.stageId ??
+          (normalizedStatuses.length ? stageOrder[stageOrder.length - 1] : stageOrder[0]);
+        const stageText = stageLabel(firstPendingStage);
+
+        const approvers = new Set<string>();
+        normalizedStatuses.forEach((row) => {
+          if (row.requestedBy && profileMap[row.requestedBy]) approvers.add(profileMap[row.requestedBy]);
+          if (row.approvedBy && profileMap[row.approvedBy]) approvers.add(profileMap[row.approvedBy]);
+        });
+
+        (project.team_members ?? []).forEach((member: string) => {
+          if (member) approvers.add(String(member));
+        });
+
+        const team = Array.from(approvers.size ? approvers : new Set(["Belum ada approver"]));
+
+        return {
+          id: project.id,
+          name: project.name ?? "Untitled Project",
+          code: project.code ?? undefined,
+          location: project.location ?? "",
+          stage: stageText,
+          updated: formatDate(project.updated_at ?? project.created_at),
+          team,
+          pm: project.lead ?? null,
+        } satisfies ApprovalRow;
       });
 
-      (project.team_members ?? []).forEach((member: string) => {
-        if (member) approvers.add(String(member));
-      });
-
-      const team = Array.from(approvers.size ? approvers : new Set(["Belum ada approver"]));
-
-      return {
-        id: project.id,
-        name: project.name ?? "Untitled Project",
-        code: project.code ?? undefined,
-        location: project.location ?? "",
-        stage: stageText,
-        updated: formatDate(project.updated_at ?? project.created_at),
-        team,
-        pm: project.lead ?? null,
-      } satisfies ApprovalRow;
-    });
-
-    return { approvals: approvalsMapped, error: errMessage };
+    return { approvals: approvalsMapped, stats: dbStats, error: errMessage };
   } catch (error) {
     return {
       approvals: [],
+      stats: defaultStats,
       error: error instanceof Error ? error.message : "Gagal memuat approvals",
     };
   }
@@ -160,7 +186,7 @@ async function loadApprovalsFromDb(): Promise<{ approvals: ApprovalRow[]; error?
 
 export default async function PMApprovalsPage() {
   const profile = await getCurrentUserProfile();
-  const { approvals, error } = await loadApprovalsFromDb();
+  const { approvals, stats, error } = await loadApprovalsFromDb();
 
   return (
     <div className="min-h-screen bg-[#f7f7f9] text-slate-900">

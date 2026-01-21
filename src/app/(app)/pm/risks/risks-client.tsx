@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { ArrowRight, BadgeCheck, CheckCircle2, Eye, Loader2, Paperclip, Send, UserRound } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
@@ -12,6 +12,7 @@ import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Separator } from "@/components/ui/separator";
 import { Textarea } from "@/components/ui/textarea";
+import { cn } from "@/lib/utils";
 
 export type RiskStatus = "Investigating" | "Open" | "Mitigated" | "Resolved" | "Assigned";
 
@@ -29,6 +30,7 @@ export type RiskRow = {
   attachments?: { id: string; name: string; type?: string; size?: string }[];
 };
 
+// Data statis untuk fallback & demo
 const initialRisks: RiskRow[] = [
   {
     id: "blk-092",
@@ -84,15 +86,67 @@ const statusTone: Record<RiskStatus, string> = {
   Assigned: "bg-indigo-50 text-indigo-700",
 };
 
+function formatDate(dateStr: string): string {
+  try {
+    const date = new Date(dateStr);
+    return date.toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" });
+  } catch {
+    return dateStr;
+  }
+}
+
 export function RisksClient() {
-  const [risks, setRisks] = useState<RiskRow[]>(initialRisks);
+  const [risks, setRisks] = useState<RiskRow[]>([]);
+  const [fetching, setFetching] = useState(true);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [assignOpen, setAssignOpen] = useState(false);
   const [selectedMember, setSelectedMember] = useState<string>("");
   const [note, setNote] = useState("");
-  const [loading, setLoading] = useState(false);
+  const [assigning, setAssigning] = useState(false);
 
   const selectedRisk = useMemo(() => risks.find((r) => r.id === selectedId) || null, [risks, selectedId]);
+
+  // Fetch blockers from API
+  const fetchBlockers = useCallback(async () => {
+    setFetching(true);
+    try {
+      const res = await fetch("/api/blockers");
+      if (res.ok) {
+        const body = await res.json();
+        const blockerData = Array.isArray(body.data) ? body.data : [];
+
+        // Transform API data to RiskRow format
+        const transformedBlockers: RiskRow[] = blockerData.map((blocker: any, index: number) => ({
+          id: blocker.id,
+          code: `#BLK-${new Date(blocker.created_at).getFullYear()}-${String(index + 100).padStart(3, "0")}`,
+          title: blocker.title || blocker.reason || blocker.task_title || "Untitled Blocker",
+          description: blocker.notes || blocker.reason || "No description provided.",
+          project: blocker.project_name || "Unknown Project",
+          product: blocker.product || "Other",
+          reporter: blocker.reporter_name || "Unknown",
+          assignee: "Unassigned",
+          status: (blocker.status as RiskStatus) || "Open",
+          reportDate: formatDate(blocker.created_at),
+          attachments: blocker.files?.map((f: any) => ({
+            id: f.id,
+            name: f.name,
+            size: f.size ? `${Math.round(f.size / 1024)} KB` : "0 KB",
+            type: f.type
+          })) ?? [],
+        }));
+
+        setRisks(transformedBlockers);
+      }
+    } catch {
+      // Keep empty on error
+    } finally {
+      setFetching(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchBlockers();
+  }, [fetchBlockers]);
 
   function closeDetail() {
     setSelectedId(null);
@@ -107,7 +161,7 @@ export function RisksClient() {
 
   function handleAssign() {
     if (!selectedRisk || !selectedMember) return;
-    setLoading(true);
+    setAssigning(true);
     setTimeout(() => {
       setRisks((prev) =>
         prev.map((risk) =>
@@ -116,7 +170,7 @@ export function RisksClient() {
             : risk
         )
       );
-      setLoading(false);
+      setAssigning(false);
       setAssignOpen(false);
       setSelectedMember("");
       setNote("");
@@ -126,41 +180,66 @@ export function RisksClient() {
   return (
     <div className="flex flex-col gap-3 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
       <div className="space-y-3">
-        {risks.map((risk) => (
-          <div
-            key={risk.id}
-            className="flex flex-col gap-3 rounded-2xl border border-slate-200 bg-white px-4 py-3 shadow-xs lg:flex-row lg:items-center lg:justify-between"
-          >
-            <div className="space-y-1">
-              <p className="text-xs font-semibold text-rose-500">{risk.code}</p>
-              <p className="text-lg font-semibold text-slate-900">{risk.title}</p>
-              <p className="text-sm text-slate-500 line-clamp-2">{risk.description}</p>
-              <div className="flex flex-wrap gap-3 pt-1 text-sm text-slate-600">
-                <span className="font-semibold text-slate-800">{risk.project}</span>
-                <Separator orientation="vertical" className="h-4" />
-                <span>Assignee: {risk.assignee || "Unassigned"}</span>
-              </div>
+        {risks.length === 0 && !fetching ? (
+          <div className="flex flex-col items-center justify-center py-12 text-center">
+            <div className="grid size-12 place-items-center rounded-full bg-slate-50">
+              <BadgeCheck className="size-6 text-slate-300" />
             </div>
-
-            <div className="flex flex-col items-start gap-3 text-sm text-slate-600 lg:items-end">
-              <div className="flex items-center gap-2">
-                <Badge className={`rounded-md ${statusTone[risk.status]}`}>{risk.status}</Badge>
-                <ArrowRight className="size-4 text-slate-400" />
-              </div>
-              <div className="text-xs text-slate-500">Report: {risk.reportDate}</div>
-              <div className="flex items-center gap-3">
-                <button
-                  type="button"
-                  onClick={() => setSelectedId(risk.id)}
-                  className="rounded-full p-2 hover:bg-slate-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
-                  aria-label={`View ${risk.title}`}
-                >
-                  <Eye className="size-4" />
-                </button>
-              </div>
-            </div>
+            <h3 className="mt-4 text-sm font-semibold text-slate-900">No Blockers Found</h3>
+            <p className="max-w-[17rem] items-center text-sm text-slate-500">
+              Tim project belum melaporkan blocker apapun.
+            </p>
           </div>
-        ))}
+        ) : (
+          risks.map((risk) => (
+            <div
+              key={risk.id}
+              onClick={() => setSelectedId(risk.id)}
+              className="group relative flex cursor-pointer flex-col gap-4 rounded-xl border border-slate-200 bg-white p-5 transition-all hover:border-indigo-300 hover:shadow-md md:flex-row md:items-start md:justify-between"
+            >
+              <div className="flex-1 space-y-2">
+                <div className="flex items-center gap-3 text-xs text-slate-500">
+                  <span className="font-semibold text-indigo-600">{risk.code}</span>
+                  <span>•</span>
+                  <span>{risk.reportDate}</span>
+                  <span>•</span>
+                  <span className="font-medium text-slate-700">{risk.project}</span>
+                </div>
+
+                <h3 className="text-lg font-semibold text-slate-900 group-hover:text-indigo-700 transition-colors">
+                  {risk.title}
+                </h3>
+
+                <p className="text-sm text-slate-600 line-clamp-2 leading-relaxed">
+                  {risk.description}
+                </p>
+
+                <div className="flex flex-wrap items-center gap-3 pt-2 text-xs">
+                  <Badge variant="secondary" className="bg-slate-100 font-normal text-slate-600 hover:bg-slate-200">
+                    {risk.product}
+                  </Badge>
+                  <div className="flex items-center gap-1.5 text-slate-500">
+                    <UserRound className="size-3.5" />
+                    <span>{risk.reporter}</span>
+                    <ArrowRight className="size-3 text-slate-300" />
+                    <span className={risk.assignee && risk.assignee !== "Unassigned" ? "font-medium text-slate-900" : "text-slate-400 italic"}>
+                      {risk.assignee || "Unassigned"}
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex shrink-0 flex-col items-end gap-3 md:items-end">
+                <Badge className={cn("rounded-full px-3 py-1 text-xs font-medium uppercase tracking-wide", statusTone[risk.status])}>
+                  {risk.status}
+                </Badge>
+                <div className="hidden rounded-full border border-slate-200 bg-white p-2 text-slate-400 group-hover:border-indigo-100 group-hover:bg-indigo-50 group-hover:text-indigo-600 md:block">
+                  <Eye className="size-4" />
+                </div>
+              </div>
+            </div>
+          ))
+        )}
       </div>
 
       <Dialog open={!!selectedRisk} onOpenChange={(open) => (!open ? closeDetail() : null)}>
@@ -189,7 +268,8 @@ export function RisksClient() {
                       selectedRisk.attachments?.map((file) => (
                         <Card
                           key={file.id}
-                          className="flex min-w-[180px] flex-col gap-2 border-slate-200 p-3 shadow-sm"
+                          className="flex min-w-[180px] flex-col gap-2 border-slate-200 p-3 shadow-sm cursor-pointer hover:bg-slate-50 transition"
+                          onClick={() => window.open(`/api/files?id=${file.id}`, "_blank")}
                         >
                           <div className="flex items-center gap-2 text-sm text-slate-700">
                             <Paperclip className="size-4 text-slate-500" />
@@ -296,10 +376,10 @@ export function RisksClient() {
             </Button>
             <Button
               className="bg-indigo-600 text-white hover:bg-indigo-700"
-              disabled={!selectedMember || loading}
+              disabled={!selectedMember || assigning}
               onClick={handleAssign}
             >
-              {loading ? <Loader2 className="mr-2 size-4 animate-spin" /> : null}
+              {assigning ? <Loader2 className="mr-2 size-4 animate-spin" /> : null}
               Assign to Resolve
             </Button>
           </DialogFooter>

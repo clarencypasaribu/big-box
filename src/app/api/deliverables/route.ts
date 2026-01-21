@@ -55,8 +55,41 @@ export async function POST(request: Request) {
             return NextResponse.json({ message: updateError.message }, { status: 400 });
         }
 
-        // Store deliverable info in task_deliverables table (if it exists) or return success
-        // For now, just mark as done and return success
+        // Create TaskDeliverable record
+        const { data: deliverable, error: deliverableError } = await supabase
+            .from("task_deliverables")
+            .insert({
+                task_id: taskId,
+                data_ingest: totalDataIngest || null,
+                notes: notes || null,
+            })
+            .select()
+            .single();
+
+        if (deliverableError) {
+            console.error("Error creating deliverable:", deliverableError);
+            // Verify if table exists? Proceeding anyway since task is done.
+        }
+
+        // Save Attachment if present
+        if (body.attachmentData && body.attachmentFileName) {
+            const { error: fileError } = await supabase
+                .from("files")
+                .insert({
+                    name: body.attachmentFileName,
+                    data: body.attachmentData,
+                    size: body.attachmentSize || 0,
+                    type: body.attachmentType || "application/octet-stream",
+                    entity_type: "task_deliverable",
+                    entity_id: deliverable?.id ?? taskId, // fallback to taskId if deliverable creation failed (unlikely)
+                    uploader_id: userId,
+                });
+
+            if (fileError) {
+                console.error("Error saving file:", fileError);
+            }
+        }
+
         return NextResponse.json({
             data: {
                 taskId,

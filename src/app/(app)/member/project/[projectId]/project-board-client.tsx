@@ -542,7 +542,7 @@ export function ProjectBoardClient({
                               approvalStatus === "Approved" ||
                               isLocked ||
                               column.cards.length === 0 ||
-                              column.cards.some((card) => !card.done)
+                              (column.status !== "Completed" && column.cards.some((card) => !card.done))
                             }
                             onClick={async () => {
                               try {
@@ -555,10 +555,14 @@ export function ProjectBoardClient({
                                     status: "Pending",
                                   }),
                                 });
-                                if (!res.ok) return;
+                                if (!res.ok) {
+                                  const body = await res.json().catch(() => ({}));
+                                  alert(body.message || "Gagal mengirim approval.");
+                                  return;
+                                }
                                 await refreshProjectData();
-                              } catch {
-                                // ignore
+                              } catch (err) {
+                                alert("Terjadi kesalahan saat mengirim approval.");
                               }
                             }}
                           >

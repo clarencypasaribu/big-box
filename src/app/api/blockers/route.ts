@@ -62,10 +62,10 @@ export async function GET(request: Request) {
     }
 
     const supabase = await createSupabaseServiceClient({ allowWrite: true });
-    const { data, error } = await supabase
+    const { data: blockers, error } = await supabase
       .from("blockers")
       .select(
-        "id,task_id,task_title,project_id,project_name,reason,notes,reporter_name,status,created_at"
+        "id,task_id,task_title,project_id,project_name,title,product,reason,notes,reporter_name,status,created_at"
       )
       .eq("pm_id", userId)
       .order("created_at", { ascending: false });
@@ -74,7 +74,23 @@ export async function GET(request: Request) {
       return NextResponse.json({ message: error.message }, { status: 400 });
     }
 
-    return NextResponse.json({ data });
+    if (!blockers || blockers.length === 0) {
+      return NextResponse.json({ data: [] });
+    }
+
+    const blockerIds = blockers.map(b => b.id);
+    const { data: files } = await supabase
+      .from("files")
+      .select("id,name,size,type,data,entity_id") // including data for download
+      .in("entity_id", blockerIds)
+      .eq("entity_type", "blocker");
+
+    const blockersWithFiles = blockers.map(b => ({
+      ...b,
+      files: files?.filter(f => f.entity_id === b.id) ?? []
+    }));
+
+    return NextResponse.json({ data: blockersWithFiles });
   } catch (error) {
     return NextResponse.json({ message: "Failed to load blockers" }, { status: 500 });
   }
@@ -84,6 +100,8 @@ export async function POST(request: Request) {
   try {
     const body = await request.json();
     const taskId = String(body.taskId ?? "").trim();
+    const title = body.title ? String(body.title).trim() : "";
+    const product = body.product ? String(body.product).trim() : "";
     const reason = body.reason ? String(body.reason).trim() : "";
     const notes = body.notes ? String(body.notes).trim() : "";
 
@@ -91,9 +109,9 @@ export async function POST(request: Request) {
       return NextResponse.json({ message: "Task wajib diisi" }, { status: 400 });
     }
 
-    if (!reason && !notes) {
+    if (!title && !reason && !notes) {
       return NextResponse.json(
-        { message: "Pilih alasan atau tulis detail blocker." },
+        { message: "Isi judul blocker atau deskripsi detail." },
         { status: 400 }
       );
     }
@@ -156,7 +174,9 @@ export async function POST(request: Request) {
       task_title: task.title,
       project_id: project.id,
       project_name: project.name,
-      reason: reason || null,
+      title: title || reason || null,
+      product: product || null,
+      reason: reason || title || null,
       notes: notes || null,
       reporter_id: userId,
       reporter_name: reporterName,
@@ -173,6 +193,21 @@ export async function POST(request: Request) {
     if (error) {
       return NextResponse.json({ message: error.message }, { status: 400 });
     }
+
+    // Save attachment if exists
+    if (data && body.attachmentData && body.attachmentFileName) {
+      await supabase.from("files").insert({
+        name: body.attachmentFileName,
+        data: body.attachmentData,
+        size: body.attachmentSize || 0,
+        type: body.attachmentType || "application/octet-stream",
+        entity_type: "blocker",
+        entity_id: data.id,
+        uploader_id: userId,
+      });
+    }
+
+
 
     return NextResponse.json({ data });
   } catch (error) {

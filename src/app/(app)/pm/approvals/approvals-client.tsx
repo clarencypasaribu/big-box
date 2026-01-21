@@ -14,6 +14,16 @@ import {
   XCircle,
 } from "lucide-react";
 
+function safeDateFormat(dateStr: string) {
+  try {
+    const date = new Date(dateStr);
+    if (isNaN(date.getTime())) return "";
+    return new Intl.DateTimeFormat("en", { day: "2-digit", month: "short", year: "numeric" }).format(date);
+  } catch {
+    return "";
+  }
+}
+
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -165,7 +175,7 @@ export function ApprovalsClient({
       const approvalsBody = approvalsRes.ok ? await approvalsRes.json() : { data: [] };
       const tasksBody = tasksRes.ok ? await tasksRes.json() : { data: [] };
 
-      const approvals = (approvalsBody.data ?? []).map((row: any) => ({
+      const approvals: { stageId: string; status: string }[] = (approvalsBody.data ?? []).map((row: any) => ({
         stageId: normalizeStageId(row.stage_id),
         status: row.status ?? "Pending",
       }));
@@ -197,8 +207,29 @@ export function ApprovalsClient({
             title: task.title ?? "Untitled Task",
             done: task.status === "Done" || task.status === "Completed",
             owner: task.assignee ?? "",
-            updated: task.due_date ? new Intl.DateTimeFormat("en", { day: "2-digit", month: "short", year: "numeric" }).format(new Date(task.due_date)) : "",
+            updated: task.due_date ? safeDateFormat(task.due_date) : "",
+            // store raw files if needed for individual task view, but here we aggregate
+            rawFiles: task.files ?? []
           })) ?? [];
+
+      const stageFiles: StageFile[] = [];
+      (tasksBody.data ?? [])
+        .filter((task: any) => normalizeStageId(task.stage) === currentStageMeta.id)
+        .forEach((task: any) => {
+          if (task.files && Array.isArray(task.files)) {
+            task.files.forEach((f: any) => {
+              stageFiles.push({
+                id: f.id,
+                name: f.name,
+                owner: task.assignee || "Team", // tasks don't always have assignee name in this payload, but fair enough
+                size: f.size ? `${Math.round(f.size / 1024)} KB` : "0 KB",
+                // We need a way to download. For now assuming we can fetch by file ID or data is not here.
+                // The /api/project-tasks did NOT return 'data' (base64) to save bandwidth.
+                // We need a download endpoint.
+              });
+            });
+          }
+        });
 
       return {
         approvalsMap,
@@ -206,6 +237,7 @@ export function ApprovalsClient({
         nextStageMeta,
         phases,
         activeTasks,
+        files: stageFiles
       };
     } catch (error) {
       setDetailError(error instanceof Error ? error.message : "Gagal memuat detail approval");
@@ -234,7 +266,7 @@ export function ApprovalsClient({
       note: "Pastikan seluruh task pada stage ini sudah lengkap sebelum approve.",
       phases: result.phases,
       tasks: result.activeTasks,
-      files: [],
+      files: result.files,
     };
 
     setDetailCache((prev) => ({ ...prev, [project.id]: detail }));
@@ -388,9 +420,9 @@ export function ApprovalsClient({
       </div>
 
       <Dialog open={!!selectedId} onOpenChange={(open) => !open && setSelectedId(null)}>
-        <DialogContent className="max-w-5xl border-slate-200 bg-white">
+        <DialogContent className="max-h-[85vh] w-full max-w-5xl overflow-y-auto border-slate-200 bg-white p-0">
           {selectedDetail ? (
-            <>
+            <div className="space-y-6 p-6">
               <DialogHeader className="space-y-2">
                 <DialogTitle className="text-2xl font-semibold text-slate-900">
                   {selectedDetail.project}
@@ -413,36 +445,40 @@ export function ApprovalsClient({
                 </DialogDescription>
               </DialogHeader>
 
+              {/* Phases Grid */}
+              <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 md:grid-cols-5">
+                {selectedDetail.phases.map((phase) => (
+                  <Card key={phase.code} className={`border ${phaseTone[phase.status]} shadow-sm`}>
+                    <CardContent className="flex flex-col gap-1 p-2.5">
+                      <div className="flex items-center justify-between">
+                        <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">{phase.code}</span>
+                        {phase.status === "done" && <CheckCircle2 className="size-3.5 text-emerald-600" />}
+                        {phase.status === "in-review" && (
+                          <span className="size-1.5 rounded-full bg-sky-500" aria-hidden />
+                        )}
+                      </div>
+                      <p className="line-clamp-1 text-xs font-semibold text-slate-900" title={phase.title}>
+                        {phase.title}
+                      </p>
+                      <Badge
+                        className="w-fit rounded-full border border-white/50 bg-white/60 px-1.5 py-0 text-[9px] font-bold uppercase tracking-wide"
+                        variant="outline"
+                      >
+                        {phase.status === "done"
+                          ? "Done"
+                          : phase.status === "current"
+                            ? "Current"
+                            : phase.status === "in-review"
+                              ? "Review"
+                              : "Pending"}
+                      </Badge>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+
               <div className="grid gap-5 lg:grid-cols-[1.1fr,0.9fr]">
                 <div className="space-y-4">
-                  <div className="grid grid-cols-2 gap-3 md:grid-cols-3">
-                    {selectedDetail.phases.map((phase) => (
-                      <Card key={phase.code} className={`border ${phaseTone[phase.status]} shadow-sm`}>
-                        <CardContent className="space-y-2 p-4">
-                          <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide">
-                            <span className="text-slate-500">{phase.code}</span>
-                            {phase.status === "done" && <CheckCircle2 className="size-4 text-emerald-600" />}
-                            {phase.status === "in-review" && (
-                              <span className="size-2 rounded-full bg-sky-500" aria-hidden />
-                            )}
-                          </div>
-                          <p className="text-base font-semibold text-slate-900">{phase.title}</p>
-                          <Badge
-                            className="w-fit rounded-full border border-white/50 bg-white/60 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wide"
-                            variant="outline"
-                          >
-                            {phase.status === "done"
-                              ? "Completed"
-                              : phase.status === "current"
-                                ? "Current"
-                                : phase.status === "in-review"
-                                  ? "In Review"
-                                  : "Pending"}
-                          </Badge>
-                        </CardContent>
-                      </Card>
-                    ))}
-                  </div>
 
                   <Card className="border-slate-200 shadow-sm">
                     <CardContent className="space-y-4 p-4 md:p-5">
@@ -453,34 +489,39 @@ export function ApprovalsClient({
                         </Badge>
                       </div>
                       <div className="space-y-3">
-                        {selectedDetail.tasks.map((task) => (
-                          <div
-                            key={task.id}
-                            className="flex items-start gap-3 rounded-lg border border-slate-100 bg-slate-50/60 px-3 py-2.5"
-                          >
-                            <span
-                              className={`mt-0.5 grid size-6 place-items-center rounded-full border text-white ${
-                                task.done
+                        {selectedDetail.tasks.length === 0 ? (
+                          <p className="text-sm text-slate-500">Tidak ada task pada stage ini.</p>
+                        ) : (
+                          selectedDetail.tasks.map((task) => (
+                            <div
+                              key={task.id}
+                              className="flex items-start gap-3 rounded-lg border border-slate-100 bg-slate-50/60 px-3 py-2.5"
+                            >
+                              <span
+                                className={`mt-0.5 grid size-6 place-items-center rounded-full border text-white ${task.done
                                   ? "border-emerald-100 bg-emerald-500"
                                   : "border-amber-200 bg-amber-400"
-                              }`}
-                            >
-                              {task.done ? <CheckCircle2 className="size-3.5" /> : <XCircle className="size-3.5" />}
-                            </span>
-                            <div className="space-y-1">
-                              <p className="font-semibold text-slate-900">{task.title}</p>
-                              <p className="text-xs text-slate-500">
-                                {task.owner ? `Owner: ${task.owner}` : "Owner belum diisi"}
-                                {task.updated ? ` • Update: ${task.updated}` : ""}
-                              </p>
+                                  }`}
+                              >
+                                {task.done ? <CheckCircle2 className="size-3.5" /> : <XCircle className="size-3.5" />}
+                              </span>
+                              <div className="space-y-1">
+                                <p className="font-semibold text-slate-900">{task.title}</p>
+                                <p className="text-xs text-slate-500">
+                                  {task.owner ? `Owner: ${task.owner}` : "Owner belum diisi"}
+                                  {task.updated ? ` • Update: ${task.updated}` : ""}
+                                </p>
+                              </div>
                             </div>
-                          </div>
-                        ))}
+                          ))
+                        )}
                       </div>
-                      <div className="flex items-center gap-2 rounded-lg bg-emerald-50 px-3 py-2 text-sm font-semibold text-emerald-700">
-                        <CheckCircle2 className="size-4" />
-                        Semua task pada phase ini sudah dicek tim.
-                      </div>
+                      {selectedDetail.tasks.length > 0 && selectedDetail.tasks.every((t) => t.done) && (
+                        <div className="flex items-center gap-2 rounded-lg bg-emerald-50 px-3 py-2 text-sm font-semibold text-emerald-700">
+                          <CheckCircle2 className="size-4" />
+                          Semua task pada phase ini sudah dicek tim.
+                        </div>
+                      )}
                     </CardContent>
                   </Card>
 
@@ -512,7 +553,12 @@ export function ApprovalsClient({
                                   </p>
                                 </div>
                               </div>
-                              <Button variant="ghost" size="sm" className="gap-2 text-slate-700 hover:bg-slate-100">
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="gap-2 text-slate-700 hover:bg-slate-100"
+                                onClick={() => window.open(`/api/files?id=${file.id}`, "_blank")}
+                              >
                                 <Download className="size-4" />
                                 Unduh
                               </Button>
@@ -572,7 +618,7 @@ export function ApprovalsClient({
                   </Card>
                 </div>
               </div>
-            </>
+            </div>
           ) : (
             <div className="space-y-2 p-6">
               <DialogHeader className="sr-only">

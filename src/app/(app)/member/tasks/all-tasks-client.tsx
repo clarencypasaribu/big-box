@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState, useCallback } from "react";
-import { MoveRight, FileText, AlertTriangle } from "lucide-react";
+import { MoveRight, FileText, AlertTriangle, Paperclip, X } from "lucide-react";
 import Link from "next/link";
 
 import { Badge } from "@/components/ui/badge";
@@ -14,6 +14,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
 
@@ -63,10 +64,12 @@ const stageTitleMap: Record<string, string> = {
   "stage-5": "Stage F5: Closure",
 };
 
-const blockerReasons = [
-  "Menunggu Kredensial Server",
-  "Lisensi bigQuery",
-  "Environment Setup Failure",
+const productCategories = [
+  "Big Vision",
+  "Traffic Monitor",
+  "SOC Platform",
+  "IDS",
+  "Data Pipeline",
   "Other",
 ];
 
@@ -85,8 +88,10 @@ export function AllTasksClient({ projects }: { projects: ProjectRef[] }) {
   // Report Blocker Dialog State
   const [blockerOpen, setBlockerOpen] = useState(false);
   const [blockerTask, setBlockerTask] = useState<TaskItem | null>(null);
-  const [blockerReason, setBlockerReason] = useState("");
-  const [blockerDetails, setBlockerDetails] = useState("");
+  const [blockerTitle, setBlockerTitle] = useState("");
+  const [blockerProduct, setBlockerProduct] = useState("");
+  const [blockerDescription, setBlockerDescription] = useState("");
+  const [blockerAttachment, setBlockerAttachment] = useState<File | null>(null);
   const [submittingBlocker, setSubmittingBlocker] = useState(false);
 
   const fetchAllTasks = useCallback(async () => {
@@ -153,17 +158,35 @@ export function AllTasksClient({ projects }: { projects: ProjectRef[] }) {
     setDeliverableOpen(true);
   };
 
+  // Helper to convert file to base64
+  const fileToBase64 = (file: File): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.readAsDataURL(file);
+      reader.onload = () => resolve(reader.result as string);
+      reader.onerror = (error) => reject(error);
+    });
+  };
+
   const handleSubmitDeliverable = async () => {
     if (!deliverableTask) return;
     setSubmittingDeliverable(true);
 
     try {
+      let attachmentData = null;
+      if (attachmentFile) {
+        attachmentData = await fileToBase64(attachmentFile);
+      }
+
       const res = await fetch("/api/deliverables", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           taskId: deliverableTask.id,
           attachmentFileName: attachmentFile?.name ?? null,
+          attachmentData: attachmentData,
+          attachmentSize: attachmentFile?.size ?? 0,
+          attachmentType: attachmentFile?.type ?? "",
           totalDataIngest,
           notes: deliverableNotes,
         }),
@@ -172,9 +195,12 @@ export function AllTasksClient({ projects }: { projects: ProjectRef[] }) {
       if (res.ok) {
         setDeliverableOpen(false);
         fetchAllTasks();
+        alert("Deliverables berhasil dikirim!");
+      } else {
+        throw new Error("Gagal mengirim data");
       }
-    } catch {
-      // ignore
+    } catch (err: any) {
+      alert("Gagal mengirim deliverable.");
     } finally {
       setSubmittingDeliverable(false);
     }
@@ -182,25 +208,38 @@ export function AllTasksClient({ projects }: { projects: ProjectRef[] }) {
 
   const handleOpenBlocker = (task: TaskItem) => {
     setBlockerTask(task);
-    setBlockerReason("");
-    setBlockerDetails("");
+    setBlockerTitle("");
+    setBlockerProduct("");
+    setBlockerDescription("");
+    setBlockerAttachment(null);
     setBlockerOpen(true);
   };
 
   const handleSubmitBlocker = async () => {
     if (!blockerTask) return;
-    if (!blockerReason && !blockerDetails) return;
+    if (!blockerTitle.trim() && !blockerDescription.trim()) return;
 
     setSubmittingBlocker(true);
 
     try {
+      let attachmentData = null;
+      if (blockerAttachment) {
+        attachmentData = await fileToBase64(blockerAttachment);
+      }
+
       const res = await fetch("/api/blockers", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           taskId: blockerTask.id,
-          reason: blockerReason,
-          notes: blockerDetails,
+          title: blockerTitle.trim(),
+          product: blockerProduct,
+          reason: blockerTitle.trim(),
+          notes: blockerDescription.trim(),
+          attachmentFileName: blockerAttachment?.name ?? null,
+          attachmentData: attachmentData,
+          attachmentSize: blockerAttachment?.size ?? 0,
+          attachmentType: blockerAttachment?.type ?? "",
         }),
       });
 
@@ -208,8 +247,8 @@ export function AllTasksClient({ projects }: { projects: ProjectRef[] }) {
         setBlockerOpen(false);
         alert("Blocker berhasil dikirim ke Project Manager!");
       }
-    } catch {
-      // ignore
+    } catch (err: any) {
+      alert(err.message || "Gagal mengirim blocker. Silakan coba lagi.");
     } finally {
       setSubmittingBlocker(false);
     }
@@ -387,38 +426,87 @@ export function AllTasksClient({ projects }: { projects: ProjectRef[] }) {
 
       {/* Report A Blocker Dialog */}
       <Dialog open={blockerOpen} onOpenChange={setBlockerOpen}>
-        <DialogContent className="sm:max-w-md">
+        <DialogContent className="sm:max-w-lg">
           <DialogHeader>
-            <DialogTitle>Report A Blocker</DialogTitle>
+            <DialogTitle className="text-xl font-semibold text-slate-900">Report A Blocker</DialogTitle>
+            {blockerTask && (
+              <p className="text-sm text-slate-500">Task: {blockerTask.title}</p>
+            )}
           </DialogHeader>
           <div className="space-y-4 py-4">
+            {/* Blocker Title */}
             <div className="space-y-2">
-              <label className="text-sm font-medium text-slate-700">Common Reasons</label>
-              <div className="grid grid-cols-2 gap-2">
-                {blockerReasons.map((reason) => (
+              <Label className="text-sm font-medium text-slate-700">Blocker Title</Label>
+              <Input
+                placeholder="e.g., Koneksi ke CCTV terputus"
+                value={blockerTitle}
+                onChange={(e) => setBlockerTitle(e.target.value)}
+              />
+            </div>
+
+            {/* Product Involved */}
+            <div className="space-y-2">
+              <Label className="text-sm font-medium text-slate-700">Product Involved</Label>
+              <div className="grid grid-cols-3 gap-2">
+                {productCategories.map((product) => (
                   <Button
-                    key={reason}
+                    key={product}
                     variant="outline"
                     size="sm"
                     className={cn(
-                      "justify-start text-xs h-9",
-                      blockerReason === reason && "bg-indigo-100 border-indigo-300 text-indigo-700"
+                      "justify-center text-xs h-9",
+                      blockerProduct === product && "bg-indigo-100 border-indigo-300 text-indigo-700"
                     )}
-                    onClick={() => setBlockerReason(reason)}
+                    onClick={() => setBlockerProduct(product)}
                   >
-                    {reason}
+                    {product}
                   </Button>
                 ))}
               </div>
             </div>
+
+            {/* Detailed Description */}
             <div className="space-y-2">
-              <label className="text-sm font-medium text-slate-700">Additional Details</label>
+              <Label className="text-sm font-medium text-slate-700">Detailed Description</Label>
               <Textarea
-                placeholder="Describe the blocker..."
-                value={blockerDetails}
-                onChange={(e) => setBlockerDetails(e.target.value)}
+                placeholder="Describe the blocker in detail. Include error messages, steps to reproduce, and any relevant context..."
+                value={blockerDescription}
+                onChange={(e) => setBlockerDescription(e.target.value)}
                 rows={4}
+                className="resize-none"
               />
+            </div>
+
+            {/* Attachment */}
+            <div className="space-y-2">
+              <Label className="text-sm font-medium text-slate-700">Attachment (Optional)</Label>
+              <div className="flex items-center gap-2">
+                <label className="flex-1 cursor-pointer">
+                  <div className="flex items-center justify-center gap-2 rounded-lg border-2 border-dashed border-slate-300 bg-slate-50 px-4 py-3 text-sm text-slate-500 hover:border-indigo-400 hover:bg-indigo-50 transition">
+                    <Paperclip className="size-4" />
+                    {blockerAttachment ? (
+                      <span className="text-slate-700 font-medium truncate">{blockerAttachment.name}</span>
+                    ) : (
+                      <span>Click to attach file (log, screenshot, etc.)</span>
+                    )}
+                  </div>
+                  <input
+                    type="file"
+                    className="hidden"
+                    onChange={(e) => setBlockerAttachment(e.target.files?.[0] ?? null)}
+                  />
+                </label>
+                {blockerAttachment && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="text-rose-500 hover:text-rose-600"
+                    onClick={() => setBlockerAttachment(null)}
+                  >
+                    <X className="size-4" />
+                  </Button>
+                )}
+              </div>
             </div>
           </div>
           <div className="flex justify-end gap-3">
@@ -431,7 +519,7 @@ export function AllTasksClient({ projects }: { projects: ProjectRef[] }) {
             </Button>
             <Button
               onClick={handleSubmitBlocker}
-              disabled={submittingBlocker || (!blockerReason && !blockerDetails)}
+              disabled={submittingBlocker || (!blockerTitle.trim() && !blockerDescription.trim())}
               className="bg-indigo-600 hover:bg-indigo-700"
             >
               {submittingBlocker ? "Sending..." : "Raise a Blocker"}

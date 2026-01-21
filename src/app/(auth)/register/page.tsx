@@ -91,6 +91,7 @@ export default function RegisterPage() {
       email,
       password,
       options: {
+        emailRedirectTo: `${window.location.origin}/login`,
         data: {
           role,
           phone,
@@ -109,8 +110,11 @@ export default function RegisterPage() {
       return;
     }
 
+    // Jika email confirmation aktif, tidak ada session token
+    // Profile akan di-sync saat user pertama kali login setelah confirm email
     const token = signUpData.session?.access_token;
     if (token) {
+      // User langsung dapat session (email confirm disabled di Supabase)
       const res = await fetch("/api/profile/sync", {
         method: "POST",
         headers: { Authorization: `Bearer ${token}` },
@@ -123,9 +127,17 @@ export default function RegisterPage() {
     }
 
     setRoleDialogOpen(false);
-    window.alert(
-      `Registrasi berhasil sebagai ${role === "project_manager" ? "Project Manager" : "Team Member"}. Silakan login.`
-    );
+
+    // Cek apakah user perlu confirm email atau sudah bisa langsung login
+    if (signUpData.user && !signUpData.session) {
+      window.alert(
+        `Registrasi berhasil sebagai ${role === "project_manager" ? "Project Manager" : "Team Member"}.\n\nSilakan cek email Anda untuk konfirmasi, lalu login.`
+      );
+    } else {
+      window.alert(
+        `Registrasi berhasil sebagai ${role === "project_manager" ? "Project Manager" : "Team Member"}. Silakan login.`
+      );
+    }
     router.push("/login");
   }
 

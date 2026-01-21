@@ -38,9 +38,9 @@ async function loadProjects(): Promise<ProjectRow[]> {
         location: row.location ?? "",
         status:
           row.status === "In Progress" ||
-          row.status === "Completed" ||
-          row.status === "Not Started" ||
-          row.status === "Pending"
+            row.status === "Completed" ||
+            row.status === "Not Started" ||
+            row.status === "Pending"
             ? row.status
             : "In Progress",
         progress: typeof row.progress === "number" ? row.progress : 0,
@@ -66,6 +66,15 @@ export default async function PMProjectsPage() {
   const in7Days = new Date();
   in7Days.setDate(now.getDate() + 7);
 
+  // Fetch projects with open blockers
+  const supabase = await createSupabaseServiceClient();
+  const { data: riskyProjects } = await supabase
+    .from("blockers")
+    .select("project_id")
+    .eq("status", "Open");
+
+  const distinctRiskyProjectIds = new Set(riskyProjects?.map((r: any) => r.project_id));
+
   const totalProjects = projects.length;
   const upcomingDeadlines = projects.filter((p) => {
     if (!p.endDate) return false;
@@ -73,7 +82,8 @@ export default async function PMProjectsPage() {
     if (Number.isNaN(end.getTime())) return false;
     return end >= now && end <= in7Days;
   }).length;
-  const atRisk = projects.filter((p) => p.status === "Pending").length;
+  // At Risk = Projects that have at least one open blocker
+  const atRisk = projects.filter((p) => distinctRiskyProjectIds.has(p.id)).length;
 
   const stats: Stat[] = [
     { label: "Total Projects", value: totalProjects, icon: Folder, accent: "bg-indigo-50 text-indigo-600" },
