@@ -105,6 +105,25 @@ export async function POST(request: Request) {
       return NextResponse.json({ message: error.message }, { status: 400 });
     }
 
+    // --- Notification Logic ---
+    // Fetch Project Owner to notify
+    const { data: projectData } = await supabase
+      .from("projects")
+      .select("owner_id, name")
+      .eq("id", projectId)
+      .maybeSingle();
+
+    if (projectData?.owner_id) {
+      await supabase.from("notifications").insert({
+        user_id: projectData.owner_id,
+        title: "New Task Created",
+        message: `A new task "${title}" has been added to project "${projectData.name}".`,
+        type: "TASK_CREATED",
+        link: `/projects/${projectId}?taskId=${data?.id}`,
+      });
+    }
+    // --------------------------
+
     return NextResponse.json({ data });
   } catch (error) {
     return NextResponse.json({ message: "Gagal menambah task" }, { status: 500 });

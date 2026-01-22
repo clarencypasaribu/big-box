@@ -94,6 +94,25 @@ export async function POST(request: Request) {
       return NextResponse.json({ message: error.message }, { status: 400 });
     }
 
+    // --- Notification Logic ---
+    // Fetch Project Owner to notify
+    const { data: projectOwner } = await supabase
+      .from("projects")
+      .select("owner_id, name")
+      .eq("id", projectId)
+      .maybeSingle();
+
+    if (projectOwner?.owner_id) {
+      await supabase.from("notifications").insert({
+        user_id: projectOwner.owner_id,
+        title: "Stage Approval Requested",
+        message: `Approval requested for stage ${stageId} in project "${projectOwner.name}".`,
+        type: "APPROVAL_REQUESTED",
+        link: `/projects/${projectId}`, // Link to project overview where stages are likely managed
+      });
+    }
+    // --------------------------
+
     return NextResponse.json({ data });
   } catch (error) {
     return NextResponse.json({ message: "Gagal mengirim approval" }, { status: 500 });

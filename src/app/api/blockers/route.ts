@@ -217,6 +217,18 @@ export async function POST(request: Request) {
 
 
 
+    // --- Notification Logic ---
+    if (project.owner_id) {
+      await supabase.from("notifications").insert({
+        user_id: project.owner_id,
+        title: "Blocker Reported",
+        message: `${reporterName} reported a blocker: "${title || reason}" in project "${project.name}".`,
+        type: "BLOCKER_REPORTED",
+        link: `/projects/${project.id}?blockerId=${data?.id}`, // Assuming a way to deep link or view blockers
+      });
+    }
+    // --------------------------
+
     return NextResponse.json({ data });
   } catch (error) {
     return NextResponse.json({ message: "Gagal mengirim blocker" }, { status: 500 });

@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
-import { MoveRight } from "lucide-react";
+import { useCallback, useEffect, useState } from "react";
+import { MoveRight, CalendarClock } from "lucide-react";
 import Link from "next/link";
 
 import { Badge } from "@/components/ui/badge";
@@ -10,98 +10,118 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 
 type ProjectRef = {
+  id?: string;
   name: string;
-};
-
-type StoredCard = {
-  id: string;
-  title: string;
-  description?: string;
-  priority?: "High" | "Medium" | "Low";
-  done?: boolean;
-};
-
-type StoredColumn = {
-  id: string;
-  title: string;
-  status: "Completed" | "Active" | "Testing" | "Pending";
-  cards: StoredCard[];
 };
 
 type UrgentTask = {
   id: string;
   title: string;
   project: string;
-  priority?: StoredCard["priority"];
-  status: StoredColumn["status"];
+  projectId: string;
+  priority?: "High" | "Medium" | "Low";
+  status: string;
   stage: string;
+  dueDate?: string;
   done?: boolean;
 };
 
-const priorityTone: Record<NonNullable<StoredCard["priority"]>, string> = {
+const stageTitleMap: Record<string, string> = {
+  "stage-1": "Stage F1: Initiation",
+  "stage-2": "Stage F2: Planning",
+  "stage-3": "Stage F3: Execution",
+  "stage-4": "Stage F4: Monitoring & Controlling",
+  "stage-5": "Stage F5: Closure",
+};
+
+const priorityTone: Record<string, string> = {
   High: "bg-rose-100 text-rose-700",
   Medium: "bg-amber-100 text-amber-700",
   Low: "bg-blue-100 text-blue-700",
 };
 
-const statusTone: Record<StoredColumn["status"], string> = {
+const statusTone: Record<string, string> = {
   Completed: "text-emerald-700",
+  Done: "text-emerald-700",
   Active: "text-amber-700",
+  "In Progress": "text-amber-700",
   Pending: "text-amber-700",
   Testing: "text-blue-700",
 };
 
-const highlightTone: Record<NonNullable<StoredCard["priority"]>, string> = {
+const highlightTone: Record<string, string> = {
   High: "border-l-red-500",
   Medium: "border-l-amber-500",
   Low: "border-l-blue-500",
 };
 
-function storageKey(projectName: string) {
-  return `member-project:v2:${projectName}`;
-}
-
 export function UrgentTasksClient({ projects }: { projects: ProjectRef[] }) {
   const [tasks, setTasks] = useState<UrgentTask[]>([]);
+  const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    const next: UrgentTask[] = [];
+  const fetchUrgentTasks = useCallback(async () => {
+    if (!projects.length) {
+      setTasks([]);
+      setLoading(false);
+      return;
+    }
 
-    projects.forEach((project) => {
-      const raw = window.localStorage.getItem(storageKey(project.name));
-      if (!raw) return;
-      try {
-        const parsed = JSON.parse(raw) as StoredColumn[];
-        if (!Array.isArray(parsed)) return;
-        parsed.forEach((column) => {
-          if (!Array.isArray(column.cards)) return;
-          column.cards.forEach((card) => {
-            next.push({
-              id: card.id,
-              title: card.title,
-              project: project.name,
-              priority: card.priority,
-              status: column.status,
-              stage: column.title,
-              done: card.done,
+    setLoading(true);
+    const allTasks: UrgentTask[] = [];
+
+    try {
+      await Promise.all(
+        projects.map(async (project) => {
+          if (!project.id) return;
+          try {
+            const res = await fetch(`/api/project-tasks?projectId=${encodeURIComponent(project.id)}`);
+            if (!res.ok) return;
+            const body = await res.json();
+            const data = Array.isArray(body.data) ? body.data : [];
+
+            data.forEach((task: any) => {
+              const isDone = task.status === "Done" || task.status === "Completed";
+              // Only add High priority tasks that are not done
+              if (task.priority === "High" && !isDone) {
+                allTasks.push({
+                  id: task.id,
+                  title: task.title ?? "Untitled Task",
+                  project: project.name,
+                  projectId: project.id!,
+                  priority: task.priority,
+                  status: task.status ?? "Active",
+                  stage: stageTitleMap[task.stage] ?? task.stage ?? "Unknown Stage",
+                  dueDate: task.due_date ?? undefined,
+                  done: isDone,
+                });
+              }
             });
-          });
-        });
-      } catch {
-        return;
-      }
+          } catch {
+            // ignore errors for individual projects
+          }
+        })
+      );
+    } catch {
+      // ignore
+    }
+
+    // Sort by due date (nearest first), limit to 4
+    allTasks.sort((a, b) => {
+      if (!a.dueDate && !b.dueDate) return 0;
+      if (!a.dueDate) return 1;
+      if (!b.dueDate) return -1;
+      return new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime();
     });
 
-    const notDone = next.filter((item) => !item.done);
-    setTasks((notDone.length ? notDone : next).slice(0, 4));
+    setTasks(allTasks.slice(0, 4));
+    setLoading(false);
   }, [projects]);
 
+  useEffect(() => {
+    fetchUrgentTasks();
+  }, [fetchUrgentTasks]);
+
   const hasTasks = tasks.length > 0;
-  const emptyMessage = useMemo(
-    () => "Belum ada task dari My Projects. Buka project board dulu ya.",
-    []
-  );
 
   return (
     <Card className="border-slate-200 shadow-sm">
@@ -115,14 +135,18 @@ export function UrgentTasksClient({ projects }: { projects: ProjectRef[] }) {
         </Button>
       </CardHeader>
       <CardContent className="grid gap-4 md:grid-cols-2">
-        {!hasTasks ? (
+        {loading ? (
           <div className="rounded-xl border border-slate-200 bg-white p-4 text-sm text-slate-500 md:col-span-2">
-            {emptyMessage}
+            Loading urgent tasks...
+          </div>
+        ) : !hasTasks ? (
+          <div className="rounded-xl border border-slate-200 bg-white p-4 text-sm text-slate-500 md:col-span-2">
+            Tidak ada task urgent (High Priority) saat ini. 🎉
           </div>
         ) : (
           tasks.map((task) => (
             <div
-              key={`${task.project}-${task.id}`}
+              key={`${task.projectId}-${task.id}`}
               className={cn(
                 "flex flex-col gap-3 rounded-xl border border-slate-200 bg-white p-4 shadow-sm",
                 task.priority ? highlightTone[task.priority] : "border-l-slate-300",
@@ -145,13 +169,21 @@ export function UrgentTasksClient({ projects }: { projects: ProjectRef[] }) {
                   </Badge>
                   <Badge
                     variant="outline"
-                    className={cn("rounded-md", statusTone[task.status])}
+                    className={cn("rounded-md", statusTone[task.status] ?? "text-slate-700")}
                   >
                     {task.status}
                   </Badge>
                 </div>
               </div>
-              <p className="text-xs text-slate-600">Stage: {task.stage}</p>
+              <div className="flex items-center justify-between text-xs text-slate-600">
+                <span>Stage: {task.stage}</span>
+                {task.dueDate && (
+                  <span className="flex items-center gap-1 rounded-md bg-rose-100 px-2 py-0.5 text-rose-700 font-medium">
+                    <CalendarClock className="size-3" />
+                    {new Date(task.dueDate).toLocaleDateString("id-ID", { day: "numeric", month: "short" })}
+                  </span>
+                )}
+              </div>
             </div>
           ))
         )}

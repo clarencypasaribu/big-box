@@ -90,6 +90,25 @@ export async function POST(request: Request) {
             }
         }
 
+        // --- Notification Logic ---
+        // Fetch Project info to notify PM
+        const { data: projectInfo } = await supabase
+            .from("projects")
+            .select("owner_id, name")
+            .eq("id", task.project_id)
+            .maybeSingle();
+
+        if (projectInfo?.owner_id) {
+            await supabase.from("notifications").insert({
+                user_id: projectInfo.owner_id,
+                title: "Task Deliverable Submitted",
+                message: `Deliverables for task "${task.title}" have been submitted in project "${projectInfo.name}".`,
+                type: "TASK_SUBMITTED",
+                link: `/projects/${task.project_id}?taskId=${taskId}`,
+            });
+        }
+        // --------------------------
+
         return NextResponse.json({
             data: {
                 taskId,
