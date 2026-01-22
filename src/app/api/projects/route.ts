@@ -100,7 +100,8 @@ async function resolveMemberIds(supabase: Awaited<ReturnType<typeof createSupaba
 async function syncProjectMembers(
   supabase: Awaited<ReturnType<typeof createSupabaseServiceClient>>,
   projectId: string,
-  members: string[]
+  members: string[],
+  projectName: string
 ) {
   const memberIds = await resolveMemberIds(supabase, members);
   const { data: existing } = await supabase
@@ -121,6 +122,16 @@ async function syncProjectMembers(
     await supabase.from("project_members").upsert(toInsert, {
       onConflict: "project_id,member_id",
     });
+
+    // Notify new members
+    const notifications = toInsert.map((m) => ({
+      user_id: m.member_id,
+      title: "Added to Project",
+      message: `You have been added to project "${projectName}".`,
+      type: "PROJECT_ASSIGNED",
+      link: `/projects/${projectId}`,
+    }));
+    await supabase.from("notifications").insert(notifications);
   }
 
   if (toDelete.length) {
@@ -208,7 +219,7 @@ export async function POST(request: Request) {
       const teamMembers = Array.isArray(body.teamMembers)
         ? body.teamMembers.map((member: string) => String(member))
         : [];
-      await syncProjectMembers(supabase, data.id, teamMembers);
+      await syncProjectMembers(supabase, data.id, teamMembers, payload.name);
     }
 
     return NextResponse.json({ data });

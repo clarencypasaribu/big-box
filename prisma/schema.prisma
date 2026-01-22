@@ -24,6 +24,8 @@ model blockers {
   reporter_id   String   @db.Uuid
   reporter_name String?
   pm_id         String   @db.Uuid
+  assignee_id   String?  @db.Uuid
+  assignee_name String?
   status        String   @default("Open")
   created_at    DateTime @default(now()) @db.Timestamptz(6)
   updated_at    DateTime @default(now()) @db.Timestamptz(6)

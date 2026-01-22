@@ -106,22 +106,39 @@ export async function POST(request: Request) {
     }
 
     // --- Notification Logic ---
-    // Fetch Project Owner to notify
+    // --- Notification Logic ---
+    // Fetch Project Members AND Owner to notify
+    const { data: projectMembers } = await supabase
+      .from("project_members")
+      .select("member_id")
+      .eq("project_id", projectId);
+
     const { data: projectData } = await supabase
       .from("projects")
       .select("owner_id, name")
       .eq("id", projectId)
       .maybeSingle();
 
-    if (projectData?.owner_id) {
-      await supabase.from("notifications").insert({
-        user_id: projectData.owner_id,
-        title: "New Task Created",
-        message: `A new task "${title}" has been added to project "${projectData.name}".`,
-        type: "TASK_CREATED",
-        link: `/projects/${projectId}?taskId=${data?.id}`,
-      });
+    const recipientIds = new Set<string>();
+    if (projectData?.owner_id) recipientIds.add(projectData.owner_id);
+    projectMembers?.forEach(pm => recipientIds.add(pm.member_id));
+
+    // Get current user ID to exclude self
+    const { data: { user: currentUser } } = await supabase.auth.getUser();
+    if (currentUser?.id) recipientIds.delete(currentUser.id);
+
+    const notifications = Array.from(recipientIds).map(userId => ({
+      user_id: userId,
+      title: "New Task Created",
+      message: `A new task "${title}" has been added to project "${projectData?.name}".`,
+      type: "TASK_CREATED",
+      link: `/projects/${projectId}?taskId=${data?.id}`,
+    }));
+
+    if (notifications.length > 0) {
+      await supabase.from("notifications").insert(notifications);
     }
+    // --------------------------
     // --------------------------
 
     return NextResponse.json({ data });

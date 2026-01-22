@@ -4,11 +4,12 @@ import { createSupabaseServiceClient } from "@/utils/supabase-service";
 
 export async function PATCH(
   request: Request,
-  context: { params: { profileId: string } }
+  context: { params: Promise<{ profileId: string }> }
 ) {
+  const params = await context.params;
   const body = await request.json().catch(() => ({}));
   const profileId =
-    String(context.params.profileId ?? "").trim() ||
+    String(params.profileId ?? "").trim() ||
     String(body.profileId ?? body.id ?? "").trim();
   if (!profileId) {
     return NextResponse.json({ message: "Profile id wajib ada" }, { status: 400 });

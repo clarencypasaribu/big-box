@@ -65,15 +65,44 @@ export async function GET(request: Request) {
 
     const supabase = await createSupabaseServiceClient({ allowWrite: true });
 
-    // Debug: check query
-    console.log("[API Default] Querying blockers for pm_id:", userId);
+    // Fetch projects where user is owner or member
+    const { data: memberProjects } = await supabase
+      .from("project_members")
+      .select("project_id")
+      .eq("member_id", userId);
+
+    const { data: ownedProjects } = await supabase
+      .from("projects")
+      .select("id")
+      .eq("owner_id", userId);
+
+    const projectIds = new Set([
+      ...(memberProjects?.map(p => p.project_id) || []),
+      ...(ownedProjects?.map(p => p.id) || [])
+    ]);
+
+    // Optional filter by specific project from query params
+    const projectIdParam = new URL(request.url).searchParams.get("projectId")?.trim();
+    let finalProjectIds = Array.from(projectIds);
+
+    if (projectIdParam) {
+      if (!projectIds.has(projectIdParam)) {
+        // If user is not member of requested project
+        return NextResponse.json({ message: "Unauthorized for this project" }, { status: 403 });
+      }
+      finalProjectIds = [projectIdParam];
+    }
+
+    if (finalProjectIds.length === 0) {
+      return NextResponse.json({ data: [] });
+    }
 
     const { data: blockers, error } = await supabase
       .from("blockers")
       .select(
-        "id,task_id,task_title,project_id,project_name,title,product,reason,notes,reporter_name,status,created_at"
+        "id,task_id,task_title,project_id,project_name,title,product,reason,notes,reporter_name,status,created_at,assignee_id,assignee_name,pm_id"
       )
-      .eq("pm_id", userId)
+      .in("project_id", finalProjectIds)
       .order("created_at", { ascending: false });
 
     console.log("[API Default] Found blockers:", blockers?.length, "Error:", error);
