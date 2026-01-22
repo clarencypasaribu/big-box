@@ -344,23 +344,20 @@ export function ProjectBoardClient({
   useEffect(() => {
     if (commentsOpen && activeTaskId) {
       setCommentsList([]);
-      fetch(`/api/project-tasks/${activeTaskId}/comments`)
-        .then(async (res) => {
-          if (!res.ok) {
-            const body = await res.json().catch(() => ({}));
-            console.error("Error fetching comments:", body);
-            return { data: [] };
-          }
-          return res.json();
-        })
+      const encodedId = encodeURIComponent(activeTaskId);
+      fetch(`/api/project-tasks/${encodedId}/comments`)
+        .then((res) => res.json().catch(() => ({ data: [], message: "Gagal parse response" })))
         .then((body) => {
+          if (body?.message) {
+            console.warn("Komentar task tidak bisa dimuat:", body.message);
+          }
           if (body?.data && Array.isArray(body.data)) {
             setCommentsList(
               body.data.map((c: any) => ({
                 id: c.id,
                 author: c.author,
                 text: c.text,
-                time: new Date(c.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+                time: new Date(c.created_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
               }))
             );
           }
