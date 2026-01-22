@@ -7,9 +7,7 @@ import {
   BadgeCheck,
   CalendarClock,
   CheckCircle2,
-  Download,
   MapPin,
-  PencilLine,
   UserRound,
 } from "lucide-react";
 
@@ -211,12 +209,13 @@ export function ProjectDetailClient({ projectId }: ProjectDetailClientProps) {
 
   const progress = project.progress ?? 0;
   const team = project.teamMembers?.length ? project.teamMembers : ["No team assigned"];
-  const tasksByStage = stageDefinitions
-    .filter((stage) => stage.id !== "stage-1") // Stage Initiation di-hide karena approval ada di menu Approval.
-    .map((stage) => ({
-      ...stage,
-      tasks: tasks.filter((task) => task.stage === stage.id),
-    }));
+  // Semua task per stage (termasuk stage-1) untuk ditampilkan di kartu "Task Team Member per Stage".
+  const tasksByStageAll = stageDefinitions.map((stage) => ({
+    ...stage,
+    tasks: tasks.filter((task) => task.stage === stage.id),
+  }));
+  // Stage untuk timeline/approval (tampilkan 5 stage lengkap).
+  const timelineStages = tasksByStageAll;
   const milestone = {
     title: project.name,
     targetDate: project.endDate ? formatDate(project.endDate) : "Oct 24, 2024",
@@ -230,19 +229,19 @@ export function ProjectDetailClient({ projectId }: ProjectDetailClientProps) {
     Completed: "bg-emerald-100 text-emerald-700",
   };
 
-  const currentStageIndex = tasksByStage.findIndex((stage, index) => {
+  const currentStageIndex = timelineStages.findIndex((stage, index) => {
     if (stageApprovals[stage.id] === "Approved") return false;
-    const prevApproved = tasksByStage
+    const prevApproved = timelineStages
       .slice(0, index)
       .every((item) => stageApprovals[item.id] === "Approved");
     return prevApproved;
   });
   const resolvedStageIndex =
-    currentStageIndex === -1 ? tasksByStage.length - 1 : currentStageIndex;
-  const activeStage = tasksByStage[resolvedStageIndex];
+    currentStageIndex === -1 ? timelineStages.length - 1 : currentStageIndex;
+  const activeStage = timelineStages[resolvedStageIndex];
   const hasAnyTasks = tasks.length > 0;
 
-  const stageStates = tasksByStage.map((stage, index) => {
+  const stageStates = timelineStages.map((stage, index) => {
     if (stageApprovals[stage.id] === "Approved") return "done";
     if (index === resolvedStageIndex) return "active";
     return "upcoming";
@@ -363,14 +362,9 @@ export function ProjectDetailClient({ projectId }: ProjectDetailClientProps) {
           </div>
         </div>
         <div className="flex flex-wrap items-center gap-3">
-          <Button variant="outline" className="gap-2 rounded-full border-slate-200">
-            <Download className="size-4" />
-            Export PDF
-          </Button>
-          <Button className="gap-2 rounded-full bg-[#256eff] text-white hover:bg-[#1c55c7]" asChild>
-            <Link href={`/pm/projects/${project.id}/edit`}>
-              <PencilLine className="size-4" />
-              Edit Project
+          <Button variant="outline" className="gap-2 rounded-full border-slate-200" asChild>
+            <Link href={`/pm/projects/${project.id}/report.pdf`} download>
+              Export PDF
             </Link>
           </Button>
         </div>
@@ -378,7 +372,7 @@ export function ProjectDetailClient({ projectId }: ProjectDetailClientProps) {
 
       <div className="rounded-2xl border border-slate-200 bg-white px-6 py-4 shadow-sm">
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
-          {tasksByStage.map((stage, index) => (
+          {timelineStages.map((stage, index) => (
             <div key={`${stage.label}-${index}`} className="flex items-center gap-3">
               <div
                 className={`grid size-9 place-items-center rounded-full border ${stageStates[index] === "done"
@@ -473,7 +467,7 @@ export function ProjectDetailClient({ projectId }: ProjectDetailClientProps) {
             </div>
           </div>
           <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
-            {tasksByStage.map((stage) => (
+            {tasksByStageAll.map((stage) => (
               <div key={stage.id} className="space-y-3 rounded-lg border border-slate-200 bg-white p-3">
                 <div className="flex items-center justify-between">
                   <p className="text-sm font-semibold text-slate-900">{stage.label}</p>
