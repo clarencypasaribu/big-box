@@ -96,8 +96,8 @@ function formatDate(dateStr: string): string {
 }
 
 export function RisksClient() {
-  const [risks, setRisks] = useState<RiskRow[]>([]);
-  const [fetching, setFetching] = useState(true);
+  const [risks, setRisks] = useState<RiskRow[]>(initialRisks);
+  const [fetching, setFetching] = useState(false);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [assignOpen, setAssignOpen] = useState(false);
   const [selectedMember, setSelectedMember] = useState<string>("");
@@ -135,17 +135,21 @@ export function RisksClient() {
           })) ?? [],
         }));
 
-        setRisks(transformedBlockers);
+        if (transformedBlockers.length) {
+          setRisks(transformedBlockers);
+        } else {
+          setRisks(initialRisks);
+        }
       }
     } catch {
-      // Keep empty on error
+      setRisks(initialRisks);
     } finally {
       setFetching(false);
     }
   }, []);
 
   useEffect(() => {
-    fetchBlockers();
+    void fetchBlockers();
   }, [fetchBlockers]);
 
   function closeDetail() {

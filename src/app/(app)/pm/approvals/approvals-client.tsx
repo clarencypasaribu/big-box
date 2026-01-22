@@ -608,6 +608,44 @@ export function ApprovalsClient({
                   </Card>
 
                   <Card className="border-slate-200 shadow-sm">
+                    <CardContent className="space-y-3 p-4 md:p-5">
+                      <div className="flex items-center justify-between">
+                        <h3 className="text-lg font-semibold text-slate-900">Task Stage Ini</h3>
+                        <Badge className="rounded-full bg-slate-100 text-slate-700">
+                          {selectedDetail.tasks.length} task
+                        </Badge>
+                      </div>
+                      {selectedDetail.tasks.length === 0 ? (
+                        <p className="text-sm text-slate-500">Belum ada task dari team member.</p>
+                      ) : (
+                        <div className="space-y-2">
+                          {selectedDetail.tasks.map((task) => (
+                            <div
+                              key={task.id}
+                              className="flex items-start gap-3 rounded-lg border border-slate-100 bg-slate-50 px-3 py-2"
+                            >
+                              <span
+                                className={`mt-0.5 grid size-6 place-items-center rounded-full border text-white ${
+                                  task.done ? "border-emerald-100 bg-emerald-500" : "border-amber-200 bg-amber-400"
+                                }`}
+                              >
+                                {task.done ? <CheckCircle2 className="size-3.5" /> : <XCircle className="size-3.5" />}
+                              </span>
+                              <div className="space-y-1">
+                                <p className="text-sm font-semibold text-slate-900">{task.title}</p>
+                                <p className="text-xs text-slate-500">
+                                  {task.owner ? `Assignee: ${task.owner}` : "Assignee belum diisi"}
+                                  {task.updated ? ` • Update: ${task.updated}` : ""}
+                                </p>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </CardContent>
+                  </Card>
+
+                  <Card className="border-slate-200 shadow-sm">
                     <CardContent className="space-y-2 p-4 md:p-5">
                       <p className="text-sm font-semibold text-slate-800">Approval akan menghapus item ini</p>
                       <p className="text-xs text-slate-600">
