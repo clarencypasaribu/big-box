@@ -1,147 +1,173 @@
-datasource db {
-  provider  = "postgresql"
-  url       = env("DATABASE_URL")      
-  directUrl = env("DIRECT_DATABASE_URL") 
-  schemas   = ["public"]
-}
-
 generator client {
   provider        = "prisma-client-js"
   previewFeatures = ["multiSchema"]
 }
 
-model Profile {
-  id        String   @id @db.Uuid
-  email     String   @map("email")
-  fullName  String?  @map("full_name")
-  firstName String?  @map("first_name")
-  lastName  String?  @map("last_name")
-  phone     String?  @map("phone")
-  position  String?  @map("position")
-  bio       String?  @map("bio")
-  role      String?  @map("role")
-  isActive  Boolean  @default(true) @map("is_active")
-  avatarUrl String?  @map("avatar_url")
-  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt DateTime @default(now()) @map("updated_at") @db.Timestamptz(6)
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_DATABASE_URL")
+  schemas   = ["public"]
+}
 
-  @@map("profiles")
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model blockers {
+  id            String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  task_id       String   @db.Uuid
+  task_title    String?
+  project_id    String   @db.Uuid
+  project_name  String?
+  title         String?
+  product       String?
+  reason        String?
+  notes         String?
+  reporter_id   String   @db.Uuid
+  reporter_name String?
+  pm_id         String   @db.Uuid
+  status        String   @default("Open")
+  created_at    DateTime @default(now()) @db.Timestamptz(6)
+  updated_at    DateTime @default(now()) @db.Timestamptz(6)
+
   @@schema("public")
 }
 
-model Project {
-  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  name        String
-  code        String?
-  location    String?
-  status      String   @default("In Progress")
-  progress    Int      @default(0)
-  lead        String?
-  iconBg      String?  @map("icon_bg")
-  description String?
-  ownerId     String?  @map("owner_id") @db.Uuid
-  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt   DateTime @default(now()) @map("updated_at") @db.Timestamptz(6)
-  startDate   DateTime? @map("start_date") @db.Date
-  endDate     DateTime? @map("end_date") @db.Date
-  teamMembers String[]  @map("team_members")
-  tasks       Task[]
-  members     ProjectMember[]
-
-  @@map("projects")
-  @@schema("public")
-}
-
-model ProjectMember {
-  id        String  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  projectId String  @map("project_id") @db.Uuid
-  memberId  String  @map("member_id") @db.Uuid
-  role      String?
-  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
-
-  project   Project @relation(fields: [projectId], references: [id])
-
-  @@unique([projectId, memberId], map: "project_members_project_id_member_id_key")
-  @@map("project_members")
-  @@schema("public")
-}
-
-model Task {
-  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  seedKey     String?  @unique @map("seed_key")
-  title       String
-  description String?
-  status      String
-  priority    String?
-  stage       String?
-  dueDate     String?  @map("due_date")
-  projectId   String   @map("project_id") @db.Uuid
-  project     Project  @relation(fields: [projectId], references: [id])
-  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt   DateTime @default(now()) @map("updated_at") @db.Timestamptz(6)
-
-  @@map("tasks")
-  @@schema("public")
-}
-
-model Blocker {
-  id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  taskId       String   @map("task_id") @db.Uuid
-  taskTitle    String?  @map("task_title")
-  projectId    String   @map("project_id") @db.Uuid
-  projectName  String?  @map("project_name")
-  title        String?
-  product      String?
-  reason       String?
-  notes        String?
-  reporterId   String   @map("reporter_id") @db.Uuid
-  reporterName String?  @map("reporter_name")
-  pmId         String   @map("pm_id") @db.Uuid
-  status       String   @default("Open")
-  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt    DateTime @default(now()) @map("updated_at") @db.Timestamptz(6)
-
-  @@map("blockers")
-  @@schema("public")
-}
-
-model ProjectStageApproval {
-  id          String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  projectId   String    @map("project_id") @db.Uuid
-  stageId     String    @map("stage_id")
-  status      String    @default("Pending")
-  requestedBy String?   @map("requested_by") @db.Uuid
-  approvedBy  String?   @map("approved_by") @db.Uuid
-  createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
-  approvedAt  DateTime? @map("approved_at") @db.Timestamptz(6)
-
-  @@unique([projectId, stageId], map: "project_stage_approvals_project_id_stage_id_key")
-  @@map("project_stage_approvals")
-  @@schema("public")
-}
-
-model TaskDeliverable {
-  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  taskId      String   @map("task_id") @db.Uuid
-  notes       String?
-  dataIngest  String?  @map("data_ingest")
-  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
-
-  @@map("task_deliverables")
-  @@schema("public")
-}
-
-model File {
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model files {
   id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   name        String
   size        Int
   type        String
-  data        String   
-  entityType  String   @map("entity_type")
-  entityId    String   @map("entity_id") @db.Uuid
-  uploaderId  String?  @map("uploader_id") @db.Uuid
-  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  data        String
+  entity_type String
+  entity_id   String   @db.Uuid
+  uploader_id String?  @db.Uuid
+  created_at  DateTime @default(now()) @db.Timestamptz(6)
 
-  @@map("files")
+  @@schema("public")
+}
+
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model profiles {
+  id         String   @id @db.Uuid
+  email      String
+  full_name  String?
+  first_name String?
+  last_name  String?
+  phone      String?
+  position   String?
+  bio        String?
+  role       String?
+  is_active  Boolean  @default(true)
+  avatar_url String?
+  created_at DateTime @default(now()) @db.Timestamptz(6)
+  updated_at DateTime @default(now()) @db.Timestamptz(6)
+
+  @@schema("public")
+}
+
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model project_members {
+  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  project_id String   @db.Uuid
+  member_id  String   @db.Uuid
+  role       String?
+  created_at DateTime @default(now()) @db.Timestamptz(6)
+  projects   projects @relation(fields: [project_id], references: [id])
+
+  @@unique([project_id, member_id])
+  @@schema("public")
+}
+
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model project_stage_approvals {
+  id           String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  project_id   String    @db.Uuid
+  stage_id     String
+  status       String    @default("Pending")
+  requested_by String?   @db.Uuid
+  approved_by  String?   @db.Uuid
+  created_at   DateTime  @default(now()) @db.Timestamptz(6)
+  approved_at  DateTime? @db.Timestamptz(6)
+
+  @@unique([project_id, stage_id])
+  @@schema("public")
+}
+
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model projects {
+  id              String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name            String
+  code            String?
+  location        String?
+  status          String            @default("In Progress")
+  progress        Int               @default(0)
+  lead            String?
+  icon_bg         String?
+  description     String?
+  owner_id        String?           @db.Uuid
+  created_at      DateTime          @default(now()) @db.Timestamptz(6)
+  updated_at      DateTime          @default(now()) @db.Timestamptz(6)
+  start_date      DateTime?         @db.Date
+  end_date        DateTime?         @db.Date
+  team_members    String[]
+  project_members project_members[]
+  tasks           tasks[]
+
+  @@schema("public")
+}
+
+model task_comments {
+  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  task_id    String   @db.Uuid
+  author     String
+  text       String
+  created_at DateTime @default(now()) @db.Timestamptz(6)
+  tasks      tasks    @relation(fields: [task_id], references: [id])
+
+  @@schema("public")
+}
+
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model task_deliverables {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  task_id     String   @db.Uuid
+  notes       String?
+  data_ingest String?
+  created_at  DateTime @default(now()) @db.Timestamptz(6)
+
+  @@schema("public")
+}
+
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model tasks {
+  id            String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  seed_key      String?         @unique
+  title         String
+  description   String?
+  status        String
+  priority      String?
+  stage         String?
+  due_date      String?
+  phase         String?
+  assignee      String?
+  project_id    String          @db.Uuid
+  created_at    DateTime        @default(now()) @db.Timestamptz(6)
+  updated_at    DateTime        @default(now()) @db.Timestamptz(6)
+  task_comments task_comments[]
+  projects      projects        @relation(fields: [project_id], references: [id])
+
+  @@schema("public")
+}
+
+model notifications {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  user_id     String   @db.Uuid
+  title       String
+  message     String
+  type        String
+  link        String?
+  is_read     Boolean  @default(false)
+  created_at  DateTime @default(now()) @db.Timestamptz(6)
+
   @@schema("public")
 }

@@ -32,6 +32,7 @@ type TaskItem = {
   priority?: "High" | "Medium" | "Low";
   status: string;
   stage: string;
+  dueDate?: string;
   done?: boolean;
 };
 
@@ -125,6 +126,7 @@ export function AllTasksClient({ projects }: { projects: ProjectRef[] }) {
                 priority: task.priority ?? undefined,
                 status: isDone ? "Completed" : (task.status ?? "Active"),
                 stage: stageTitleMap[task.stage] ?? task.stage ?? "Unknown Stage",
+                dueDate: task.due_date ?? undefined,
                 done: isDone,
               });
             });
@@ -316,7 +318,14 @@ export function AllTasksClient({ projects }: { projects: ProjectRef[] }) {
                     </Badge>
                   </div>
                 </div>
-                <p className="relative z-10 text-xs text-slate-600">Stage: {task.stage}</p>
+                <div className="relative z-10 flex items-center justify-between text-xs text-slate-600">
+                  <span>Stage: {task.stage}</span>
+                  {task.dueDate && (
+                    <span className="flex items-center gap-1 rounded-md bg-slate-100 px-2 py-0.5 text-slate-700">
+                      📅 {new Date(task.dueDate).toLocaleDateString("id-ID", { day: "numeric", month: "short" })}
+                    </span>
+                  )}
+                </div>
 
                 {/* Action Buttons */}
                 {!task.done && (

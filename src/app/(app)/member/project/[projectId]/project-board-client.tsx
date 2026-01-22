@@ -13,6 +13,7 @@ import {
   ChevronDown,
   Search,
   Users,
+  CalendarClock,
 } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
@@ -165,26 +166,7 @@ type FileItem = {
   url?: string;
 };
 
-const mockComments: CommentItem[] = [
-  {
-    id: "c-1",
-    author: "Eliza Sirait",
-    text: "Please align the milestones with the PM timeline.",
-    time: "2h ago",
-  },
-  {
-    id: "c-2",
-    author: "Nadia",
-    text: "I can pick this up after the env setup is ready.",
-    time: "5h ago",
-  },
-];
-
-const mockFiles: FileItem[] = [
-  { id: "f-1", name: "requirements.docx", size: "120 KB" },
-  { id: "f-2", name: "wireframes.pdf", size: "2.1 MB" },
-  { id: "f-3", name: "timeline.xlsx", size: "420 KB" },
-];
+// Removed mockComments and mockFiles
 
 function tokenizeSearch(value: string) {
   return value
@@ -226,10 +208,14 @@ export function ProjectBoardClient({
   const [columns, setColumns] = useState<Column[] | null>(null);
   const [commentsOpen, setCommentsOpen] = useState(false);
   const [filesOpen, setFilesOpen] = useState(false);
-  const [commentsList, setCommentsList] = useState<CommentItem[]>(mockComments);
+
+  const [activeTaskId, setActiveTaskId] = useState<string | null>(null);
+  const [commentsList, setCommentsList] = useState<CommentItem[]>([]);
   const [newComment, setNewComment] = useState("");
-  const [filesList, setFilesList] = useState<FileItem[]>(mockFiles);
+  const [filesList, setFilesList] = useState<FileItem[]>([]);
   const [fileToAdd, setFileToAdd] = useState<File | null>(null);
+  const [isUploading, setIsUploading] = useState(false);
+
   const [addTaskOpen, setAddTaskOpen] = useState(false);
   const [addTaskStage, setAddTaskStage] = useState<string>("");
   const [taskName, setTaskName] = useState("");
@@ -354,6 +340,56 @@ export function ProjectBoardClient({
   useEffect(() => {
     refreshProjectData();
   }, [refreshProjectData]);
+
+  useEffect(() => {
+    if (commentsOpen && activeTaskId) {
+      setCommentsList([]);
+      fetch(`/api/project-tasks/${activeTaskId}/comments`)
+        .then(async (res) => {
+          if (!res.ok) {
+            const body = await res.json().catch(() => ({}));
+            console.error("Error fetching comments:", body);
+            return { data: [] };
+          }
+          return res.json();
+        })
+        .then((body) => {
+          if (body?.data && Array.isArray(body.data)) {
+            setCommentsList(
+              body.data.map((c: any) => ({
+                id: c.id,
+                author: c.author,
+                text: c.text,
+                time: new Date(c.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+              }))
+            );
+          }
+        })
+        .catch((err) => {
+          console.error("Failed to load comments:", err);
+        });
+    }
+  }, [commentsOpen, activeTaskId]);
+
+  useEffect(() => {
+    if (filesOpen && activeTaskId) {
+      setFilesList([]);
+      fetch(`/api/project-tasks/${activeTaskId}/files`)
+        .then((res) => res.json())
+        .then((body) => {
+          if (Array.isArray(body.data)) {
+            setFilesList(
+              body.data.map((f: any) => ({
+                id: f.id,
+                name: f.name,
+                size: f.size !== undefined ? `${Math.round(f.size / 1024)} KB` : "Unknown",
+                url: `/api/files?id=${f.id}`,
+              }))
+            );
+          }
+        });
+    }
+  }, [filesOpen, activeTaskId]);
 
   return (
     <div className="space-y-6">
@@ -762,16 +798,11 @@ export function ProjectBoardClient({
                             ) : null}
                           </div>
                           <div className="mt-auto flex items-center justify-between text-xs text-slate-500">
-                            <div className="flex items-center -space-x-1">
-                              {avatarStack.slice(0, 3).map((tone) => (
-                                <div
-                                  key={`${card.id}-${tone}`}
-                                  className={cn(
-                                    "h-6 w-6 rounded-full border-2 border-white",
-                                    tone
-                                  )}
-                                />
-                              ))}
+                            <div className="flex items-center gap-1.5 rounded-md bg-slate-100 px-2 py-1 text-slate-600">
+                              <CalendarClock className="size-3.5" />
+                              <span className="font-medium">
+                                {card.dueDate ? new Date(card.dueDate).toLocaleDateString("id-ID", { day: "numeric", month: "short" }) : "-"}
+                              </span>
                             </div>
                             <div className="flex items-center gap-3">
                               <button
@@ -781,11 +812,14 @@ export function ProjectBoardClient({
                                 onClick={(event) => {
                                   event.preventDefault();
                                   event.stopPropagation();
-                                  setCommentsOpen(true);
+                                  if (card.taskId) {
+                                    setActiveTaskId(card.taskId);
+                                    setCommentsOpen(true);
+                                  }
                                 }}
                               >
                                 <MessageSquare className="size-3" />
-                                {commentsList.length} comments
+                                {commentsList.length > 0 && activeTaskId === card.taskId ? commentsList.length : card.comments} comments
                               </button>
                               <button
                                 type="button"
@@ -794,11 +828,14 @@ export function ProjectBoardClient({
                                 onClick={(event) => {
                                   event.preventDefault();
                                   event.stopPropagation();
-                                  setFilesOpen(true);
+                                  if (card.taskId) {
+                                    setActiveTaskId(card.taskId);
+                                    setFilesOpen(true);
+                                  }
                                 }}
                               >
                                 <FileText className="size-3" />
-                                {filesList.length} files
+                                {filesList.length > 0 && activeTaskId === card.taskId ? filesList.length : card.files} files
                               </button>
                             </div>
                           </div>
@@ -841,21 +878,45 @@ export function ProjectBoardClient({
               <div className="flex justify-end">
                 <Button
                   className="bg-[#256eff] text-white hover:bg-[#1c55c7]"
-                  onClick={() => {
-                    if (!newComment.trim()) return;
-                    setCommentsList((prev) => [
-                      {
-                        id: `c-${Date.now()}`,
-                        author: "You",
-                        text: newComment.trim(),
-                        time: "just now",
-                      },
-                      ...prev,
-                    ]);
-                    setNewComment("");
+                  disabled={!newComment.trim() || !activeTaskId || isUploading}
+                  onClick={async () => {
+                    if (!newComment.trim() || !activeTaskId) return;
+                    setIsUploading(true);
+
+                    try {
+                      const res = await fetch(`/api/project-tasks/${activeTaskId}/comments`, {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ text: newComment }),
+                      });
+
+                      const body = await res.json();
+
+                      if (res.ok) {
+                        const newCommentId = body.data.id;
+                        setCommentsList((prev) => [
+                          {
+                            id: newCommentId,
+                            author: body.data.author,
+                            text: body.data.text,
+                            time: "Just now",
+                          },
+                          ...prev,
+                        ]);
+                        setNewComment("");
+                      } else {
+                        console.error("Failed to submit comment:", body);
+                        alert(body.message || "Gagal mengirim komentar");
+                      }
+                    } catch (err) {
+                      console.error("Error submitting comment:", err);
+                      alert("Terjadi kesalahan sistem saat mengirim komentar");
+                    } finally {
+                      setIsUploading(false);
+                    }
                   }}
                 >
-                  Send
+                  {isUploading ? "Sending..." : "Send"}
                 </Button>
               </div>
             </div>
@@ -906,22 +967,51 @@ export function ProjectBoardClient({
               <div className="flex justify-end">
                 <Button
                   className="bg-[#256eff] text-white hover:bg-[#1c55c7]"
-                  onClick={() => {
-                    if (!fileToAdd) return;
-                    const url = URL.createObjectURL(fileToAdd);
-                    setFilesList((prev) => [
-                      {
-                        id: `f-${Date.now()}`,
-                        name: fileToAdd.name,
-                        size: `${Math.max(1, Math.round(fileToAdd.size / 1024))} KB`,
-                        url,
-                      },
-                      ...prev,
-                    ]);
-                    setFileToAdd(null);
+                  disabled={!fileToAdd || isUploading || !activeTaskId}
+                  onClick={async () => {
+                    if (!fileToAdd || !activeTaskId) return;
+                    setIsUploading(true);
+
+                    try {
+                      const reader = new FileReader();
+                      reader.readAsDataURL(fileToAdd);
+                      reader.onload = async () => {
+                        const base64Content = reader.result;
+                        const res = await fetch(`/api/project-tasks/${activeTaskId}/files`, {
+                          method: "POST",
+                          headers: { "Content-Type": "application/json" },
+                          body: JSON.stringify({
+                            name: fileToAdd.name,
+                            size: fileToAdd.size,
+                            type: fileToAdd.type,
+                            data: base64Content,
+                          }),
+                        });
+
+                        if (res.ok) {
+                          const body = await res.json();
+                          setFilesList((prev) => [
+                            {
+                              id: body.data.id,
+                              name: body.data.name,
+                              size: `${Math.round(body.data.size / 1024)} KB`,
+                              url: `/api/files?id=${body.data.id}`,
+                            },
+                            ...prev,
+                          ]);
+                          setFileToAdd(null);
+                        } else {
+                          alert("Upload failed");
+                        }
+                        setIsUploading(false);
+                      };
+                    } catch (err) {
+                      alert("Error uploading file");
+                      setIsUploading(false);
+                    }
                   }}
                 >
-                  Submit
+                  {isUploading ? "Uploading..." : "Submit"}
                 </Button>
               </div>
             </div>
@@ -1033,7 +1123,7 @@ export function ProjectBoardClient({
                 </label>
                 <Input
                   id="taskDue"
-                  placeholder="mm/dd/yy"
+                  type="date"
                   value={taskDueDate}
                   onChange={(event) => setTaskDueDate(event.target.value)}
                 />

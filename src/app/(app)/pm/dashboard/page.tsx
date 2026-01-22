@@ -29,6 +29,9 @@ import { getCurrentUserProfile } from "@/utils/current-user";
 import { createSupabaseServiceClient } from "@/utils/supabase-service";
 import { ChartData, ProjectDistributionChart } from "@/app/(app)/pm/approvals/project-distribution-chart";
 
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
+
 type Notification = {
   title: string;
   message: string;
@@ -36,19 +39,6 @@ type Notification = {
   tone: "info" | "warning" | "critical";
   timestamp?: number;
 };
-
-const navItems: {
-  label: string;
-  icon: React.ElementType;
-  href: string;
-  active?: boolean;
-}[] = [
-    { label: "Dashboard", icon: LayoutDashboard, href: "/pm/dashboard", active: true },
-    { label: "Projects", icon: Folder, href: "/pm/projects" },
-    { label: "Approvals", icon: ClipboardList, href: "/pm/approvals" },
-    { label: "Risks & Blockers", icon: AlertOctagon, href: "/pm/risks" },
-    { label: "Users", icon: Users, href: "/pm/users" },
-  ];
 
 const stageDefinitions = [
   { id: "stage-1", code: "F1", title: "Initiation", aliases: ["F1", "Initiation"] },
@@ -72,6 +62,20 @@ function normalizeStageId(stageId?: string | null) {
   return match?.id ?? stageOrder[0];
 }
 
+function timeAgo(dateStr?: string) {
+  if (!dateStr) return "";
+  const date = new Date(dateStr);
+  const now = new Date();
+  const diffMs = now.getTime() - date.getTime();
+  const diffMins = Math.floor(diffMs / 60000);
+  const diffHours = Math.floor(diffMins / 60);
+  const diffDays = Math.floor(diffHours / 24);
+
+  if (diffMins < 60) return `${diffMins}m ago`;
+  if (diffHours < 24) return `${diffHours}h ago`;
+  return `${diffDays}d ago`;
+}
+
 async function loadDashboardStats(): Promise<{
   chartData: ChartData[];
   portfolioHealth: number;
@@ -92,10 +96,26 @@ async function loadDashboardStats(): Promise<{
       { data: tasks },
     ] = await Promise.all([
       supabase.from("projects").select("id,name,progress,created_at"),
-      supabase.from("project_stage_approvals").select("project_id,stage_id,status,created_at,stage:stage_id(code, title)"),
-      supabase.from("blockers").select("description,created_at,status,pm_id").neq("status", "Resolved").order("created_at", { ascending: false }).limit(5),
+      supabase.from("project_stage_approvals").select("project_id,stage_id,status,created_at,requested_by,stage:stage_id(code, title)"),
+      supabase.from("blockers").select("description,created_at,status,pm_id,reporter_name").neq("status", "Resolved").order("created_at", { ascending: false }).limit(5),
       supabase.from("tasks").select("title,created_at,due_date,project_id,assignee"),
     ]);
+
+    // Fetch details for users who requested approval
+    const requesterIds = Array.from(new Set((approvals ?? []).map(a => a.requested_by).filter(Boolean))) as string[];
+    let userMap: Record<string, string> = {};
+
+    if (requesterIds.length > 0) {
+      const { data: users } = await supabase
+        .from("profiles")
+        .select("id, full_name, email")
+        .in("id", requesterIds);
+
+      userMap = (users ?? []).reduce((acc, u) => {
+        acc[u.id] = u.full_name || u.email || "Unknown User";
+        return acc;
+      }, {} as Record<string, string>);
+    }
 
     // 1. Chart Data
     const approvalsByProject = (approvals ?? []).reduce<Record<string, any[]>>((acc, row) => {
@@ -148,9 +168,10 @@ async function loadDashboardStats(): Promise<{
 
     // Add Blockers to Notifications
     (blockers ?? []).forEach((blocker) => {
+      const reporter = blocker.reporter_name || "A team member";
       notifications.push({
         title: "Blocker Reported",
-        message: blocker.description?.substring(0, 60) + (blocker.description?.length > 60 ? "..." : "") || "No description",
+        message: `${reporter} reported: "${blocker.description?.substring(0, 50) + (blocker.description?.length > 50 ? "..." : "") || "No description"}"`,
         time: timeAgo(blocker.created_at),
         tone: "critical",
         timestamp: new Date(blocker.created_at).getTime(),
@@ -162,10 +183,11 @@ async function loadDashboardStats(): Promise<{
       // Find project name
       const proj = projects?.find(p => p.id === approval.project_id);
       const stageCode = stageDefinitions.find(s => s.id === normalizeStageId(approval.stage_id))?.code ?? "Stage";
+      const requesterName = approval.requested_by ? userMap[approval.requested_by] : "A member";
 
       notifications.push({
-        title: "Approval Needed",
-        message: `${proj?.name ?? "Unknown Project"} is ready for ${stageCode} review.`,
+        title: "Approval Requested",
+        message: `${requesterName} requested approval for ${proj?.name ?? "Unknown Project"} (${stageCode}).`,
         time: timeAgo(approval.created_at),
         tone: "warning",
         timestamp: new Date(approval.created_at).getTime(),
@@ -174,7 +196,6 @@ async function loadDashboardStats(): Promise<{
 
     // Add New Projects to Notifications
     (projects ?? []).forEach(proj => {
-      // limit to recent 7 days? logic can be simple top N
       notifications.push({
         title: "New Project",
         message: `${proj.name} has been initiated.`,
@@ -190,11 +211,11 @@ async function loadDashboardStats(): Promise<{
       const createdAt = new Date(task.created_at);
       const proj = projects?.find(p => p.id === task.project_id);
 
-      // New Task Created (within last 24h)
-      if (now.getTime() - createdAt.getTime() < 24 * 60 * 60 * 1000) {
+      // New Task Created (within last 7 days)
+      if (now.getTime() - createdAt.getTime() < 7 * 24 * 60 * 60 * 1000) {
         notifications.push({
           title: "New Task Added",
-          message: `${task.assignee || "Someone"} added "${task.title}" to ${proj?.name || "a project"}.`,
+          message: `${task.assignee || "A team member"} added task "${task.title}" to ${proj?.name || "a project"}.`,
           time: timeAgo(task.created_at),
           tone: "info",
           timestamp: createdAt.getTime(),
@@ -206,51 +227,29 @@ async function loadDashboardStats(): Promise<{
         const dueDate = new Date(task.due_date);
         const diffHours = (dueDate.getTime() - now.getTime()) / (1000 * 60 * 60);
 
-        // If due within next 3 days (and not past due by much, e.g. -24h)
+        // If due within next 3 days 
         if (diffHours > -24 && diffHours < 72) {
           notifications.push({
             title: "Deadline Approaching",
-            message: `Task "${task.title}" is due ${timeAgo(task.due_date) === "0d ago" ? "today" : "soon"}.`,
-            time: timeAgo(task.due_date), // relative to now might say "in 2 days" but timeAgo says "ago". Let's use custom logic if needed or accept "ago" for past.
-            // Actually timeAgo logic I wrote only does "ago". 
-            // Let's stick to simple message for now.
+            message: `Task "${task.title}" (${task.assignee || "Unassigned"}) is due ${timeAgo(task.due_date) === "0d ago" ? "today" : "soon"}.`,
+            time: timeAgo(task.due_date),
             tone: "warning",
-            timestamp: dueDate.getTime(), // Sort by due date priority? Or recency of notification?
-            // User wants "activities", so maybe "deadline is near" is a status. 
-            // Let's treat timestamp as "relevance time". For deadline, maybe "now" is better so it floats top?
-            // Or keep it simple: creation time of the "event". 
-            // Since "deadline approaching" isn't a discrete event with a created_at, let's artificially set it to now to bump it? 
-            // Or just use the due date but that might bury it if far?
-            // Let's set it to NOW for sorting visibility if it's strictly upcoming.
+            timestamp: dueDate.getTime(),
           });
         }
       }
     });
 
-    // Sort by time desc and take top 5
+    // Sort by time desc and take top 10
     const sortedNotifications = notifications
       .sort((a, b) => (b.timestamp ?? 0) - (a.timestamp ?? 0))
-      .slice(0, 10); // Increase limit to show more variety
+      .slice(0, 10);
 
     return { chartData, portfolioHealth, notifications: sortedNotifications };
   } catch (error) {
     console.error("Failed to load dashboard data:", error);
     return { chartData: [], portfolioHealth: 0, notifications: [] };
   }
-}
-
-function timeAgo(dateStr?: string) {
-  if (!dateStr) return "";
-  const date = new Date(dateStr);
-  const now = new Date();
-  const diffMs = now.getTime() - date.getTime();
-  const diffMins = Math.floor(diffMs / 60000);
-  const diffHours = Math.floor(diffMins / 60);
-  const diffDays = Math.floor(diffHours / 24);
-
-  if (diffMins < 60) return `${diffMins}m ago`;
-  if (diffHours < 24) return `${diffHours}h ago`;
-  return `${diffDays}d ago`;
 }
 
 export default async function PMDashboardPage() {
@@ -264,11 +263,7 @@ export default async function PMDashboardPage() {
       const { count } = await supabase
         .from("blockers")
         .select("id", { count: "exact", head: true })
-        .eq("status", "Open"); // Remove pm_id filter to see all blockers context or keep it if personal dashboard
-      // Note: original code filtered by pm_id, but usually dashboard shows overall. 
-      // Sticking to pm_id if that was the intent, but user said "dashboardnya buat dinamis", likely implying global or broader context.
-      // safer to match previous logic or broaden it. The generic blockers query above in loadDashboardStats didn't filter by PM.
-      // I'll align them. Let's assume generic dashboard for now as current user might see all.
+        .eq("status", "Open");
       blockerCount = count ?? 0;
     } catch {
       blockerCount = 0;
