@@ -29,18 +29,27 @@ export async function GET(request: Request) {
     const taskIds = tasks.map((t) => t.id);
 
     // Fetch deliverables
-    const { data: deliverables } = await supabase
+    const { data: deliverables, error: delError } = await supabase
       .from("task_deliverables")
       .select("*")
       .in("task_id", taskIds);
 
+    console.log("[project-tasks] deliverables count:", deliverables?.length, "error:", delError);
+    if (deliverables && deliverables.length > 0) {
+      console.log("[project-tasks] sample deliverable:", deliverables[0]);
+    }
+
     // Fetch files for these deliverables
     const deliverableIds = deliverables?.map((d) => d.id) ?? [];
-    const { data: files } = await supabase
+    console.log("[project-tasks] deliverableIds:", deliverableIds);
+
+    const { data: files, error: filesError } = await supabase
       .from("files")
       .select("id,name,size,entity_id,entity_type")
       .in("entity_id", deliverableIds)
       .eq("entity_type", "task_deliverable");
+
+    console.log("[project-tasks] files count:", files?.length, "error:", filesError);
 
     // Map data back to tasks
     const tasksWithData = tasks.map((task) => {

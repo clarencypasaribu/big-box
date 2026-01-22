@@ -54,6 +54,7 @@ export function SidebarProfile({ profile }: SidebarProfileProps) {
       <DropdownMenuTrigger asChild>
         <button
           type="button"
+          id="sidebar-user-trigger"
           className="flex w-full items-center gap-3 rounded-lg bg-slate-50 px-3 py-3 text-left transition hover:bg-slate-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
         >
           <Avatar className="size-10 border border-slate-200">

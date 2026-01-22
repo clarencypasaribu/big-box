@@ -3,22 +3,9 @@ import { AlarmClock, CheckCircle2 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { PMSidebar } from "@/app/(app)/pm/_components/sidebar";
 import { ApprovalRow, ApprovalsClient } from "@/app/(app)/pm/approvals/approvals-client";
+
 import { getCurrentUserProfile } from "@/utils/current-user";
 import { createSupabaseServiceClient } from "@/utils/supabase-service";
-
-type Stat = {
-  label: string;
-  value: string | number;
-  description?: string;
-  icon: React.ElementType;
-  accent: string;
-};
-
-const stats: Stat[] = [
-  { label: "Ready for review", value: 42, icon: CheckCircle2, accent: "bg-emerald-50 text-emerald-700" },
-  { label: "Task Pending", value: 8, icon: AlarmClock, accent: "bg-amber-50 text-amber-700" },
-  { label: "Avg. Velocity", value: "4.2 days", icon: AlarmClock, accent: "bg-indigo-50 text-indigo-700" },
-];
 
 const stageDefinitions = [
   { id: "stage-1", code: "F1", title: "Initiation", aliases: ["F1", "Initiation"] },
@@ -59,19 +46,16 @@ function formatDate(value?: string | null) {
   }).format(date);
 }
 
-async function loadApprovalsFromDb(): Promise<{ approvals: ApprovalRow[]; stats: Stat[]; error?: string | null }> {
+async function loadApprovalsFromDb(): Promise<{
+  approvals: ApprovalRow[];
+  error?: string | null;
+}> {
   const hasSupabaseEnv =
     process.env.NEXT_PUBLIC_SUPABASE_URL &&
     (process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY);
 
-  const defaultStats = [
-    { label: "Ready for review", value: 0, icon: CheckCircle2, accent: "bg-emerald-50 text-emerald-700" },
-    { label: "Task Pending", value: 0, icon: AlarmClock, accent: "bg-amber-50 text-amber-700" },
-    { label: "Avg. Velocity", value: "4.2 days", icon: AlarmClock, accent: "bg-indigo-50 text-indigo-700" },
-  ];
-
   if (!hasSupabaseEnv) {
-    return { approvals: [], stats: defaultStats, error: "Supabase env belum diset, melewati fetch approvals." };
+    return { approvals: [], error: "Supabase env belum diset, melewati fetch approvals." };
   }
 
   try {
@@ -124,15 +108,7 @@ async function loadApprovalsFromDb(): Promise<{ approvals: ApprovalRow[]; stats:
       return acc;
     }, {});
 
-    // Calculate Stats
-    const readyForReviewCount = (approvals ?? []).filter((a) => a.status === "Pending").length;
-    const pendingTaskCount = (tasks ?? []).filter((t) => t.status !== "Completed" && t.status !== "Done").length;
 
-    const dbStats: Stat[] = [
-      { label: "Ready for review", value: readyForReviewCount, icon: CheckCircle2, accent: "bg-emerald-50 text-emerald-700" },
-      { label: "Task Pending", value: pendingTaskCount, icon: AlarmClock, accent: "bg-amber-50 text-amber-700" },
-      { label: "Avg. Velocity", value: "4.2 days", icon: AlarmClock, accent: "bg-indigo-50 text-indigo-700" }, // Placeholder for now
-    ];
 
     const approvalsMapped = (projects ?? [])
       .filter((project) => (tasksByProject[project.id] ?? 0) > 0) // Filter projects without tasks
@@ -145,10 +121,24 @@ async function loadApprovalsFromDb(): Promise<{ approvals: ApprovalRow[]; stats:
           approvedBy: row.approved_by,
         }));
 
-        const firstPendingStage =
-          normalizedStatuses.find((row) => row.status !== "Approved")?.stageId ??
-          (normalizedStatuses.length ? stageOrder[stageOrder.length - 1] : stageOrder[0]);
-        const stageText = stageLabel(firstPendingStage);
+        const approvalsMap = new Map<string, string>();
+        normalizedStatuses.forEach((row) => {
+          approvalsMap.set(row.stageId, row.status);
+        });
+
+        let currentStageId = stageOrder[0];
+        // Find the first stage that is NOT approved
+        for (const stage of stageOrder) {
+          const status = approvalsMap.get(stage);
+          if (status === "Approved") {
+            continue;
+          }
+          // If we hit a stage that is Pending, In Review, or Missing (undefined), that is our current stage
+          currentStageId = stage;
+          break;
+        }
+
+        const stageText = stageLabel(currentStageId);
 
         const approvers = new Set<string>();
         normalizedStatuses.forEach((row) => {
@@ -174,11 +164,12 @@ async function loadApprovalsFromDb(): Promise<{ approvals: ApprovalRow[]; stats:
         } satisfies ApprovalRow;
       });
 
-    return { approvals: approvalsMapped, stats: dbStats, error: errMessage };
+
+
+    return { approvals: approvalsMapped, error: errMessage };
   } catch (error) {
     return {
       approvals: [],
-      stats: defaultStats,
       error: error instanceof Error ? error.message : "Gagal memuat approvals",
     };
   }
@@ -186,7 +177,7 @@ async function loadApprovalsFromDb(): Promise<{ approvals: ApprovalRow[]; stats:
 
 export default async function PMApprovalsPage() {
   const profile = await getCurrentUserProfile();
-  const { approvals, stats, error } = await loadApprovalsFromDb();
+  const { approvals, error } = await loadApprovalsFromDb();
 
   return (
     <div className="min-h-screen bg-[#f7f7f9] text-slate-900">
@@ -199,21 +190,9 @@ export default async function PMApprovalsPage() {
             <p className="text-slate-600">Pantau approval readiness, pending tasks, dan velocity.</p>
           </div>
 
-          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-            {stats.map((stat) => (
-              <Card key={stat.label} className="border-slate-200 shadow-sm">
-                <CardContent className="flex items-center justify-between gap-4 p-5">
-                  <div className="space-y-1">
-                    <p className="text-sm text-slate-600">{stat.label}</p>
-                    <p className="text-3xl font-semibold text-slate-900">{stat.value}</p>
-                  </div>
-                  <div className={`grid size-12 place-items-center rounded-lg ${stat.accent}`}>
-                    <stat.icon className="size-5" />
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
+
+
+
 
           {error ? (
             <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">

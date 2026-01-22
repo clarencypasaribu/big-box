@@ -130,15 +130,15 @@ export function ProjectDetailClient({ projectId }: ProjectDetailClientProps) {
       const tasksBody = tasksRes.ok ? await tasksRes.json() : { data: [] };
       const approvalsBody = approvalsRes.ok ? await approvalsRes.json() : { data: [] };
 
-        const normalizedTasks: StageTask[] = (tasksBody.data ?? []).map((task: any) => ({
-          id: task.id,
-          title: task.title ?? "Untitled Task",
-          assignee: task.assignee ?? "",
-          due: task.due_date ?? "",
-          status: task.status ?? "Not Started",
-          done: task.status === "Done" || task.status === "Completed",
-          stage: task.stage ?? "stage-1",
-        }));
+      const normalizedTasks: StageTask[] = (tasksBody.data ?? []).map((task: any) => ({
+        id: task.id,
+        title: task.title ?? "Untitled Task",
+        assignee: task.assignee ?? "",
+        due: task.due_date ?? "",
+        status: task.status ?? "Not Started",
+        done: task.status === "Done" || task.status === "Completed",
+        stage: task.stage ?? "stage-1",
+      }));
 
       const approvalsMap: Record<string, string> = {};
       (approvalsBody.data ?? []).forEach((row: any) => {
@@ -271,10 +271,10 @@ export function ProjectDetailClient({ projectId }: ProjectDetailClientProps) {
       prev.map((task) =>
         task.id === taskId
           ? {
-              ...task,
-              done: nextDone,
-              status: nextDone ? "Done" : "In Progress",
-            }
+            ...task,
+            done: nextDone,
+            status: nextDone ? "Done" : "In Progress",
+          }
           : task
       )
     );
@@ -292,10 +292,10 @@ export function ProjectDetailClient({ projectId }: ProjectDetailClientProps) {
             prev.map((task) =>
               task.id === taskId
                 ? {
-                    ...task,
-                    status: updatedStatus,
-                    done: updatedStatus === "Done" || updatedStatus === "Completed",
-                  }
+                  ...task,
+                  status: updatedStatus,
+                  done: updatedStatus === "Done" || updatedStatus === "Completed",
+                }
                 : task
             )
           );
@@ -316,10 +316,10 @@ export function ProjectDetailClient({ projectId }: ProjectDetailClientProps) {
               prev.map((task) =>
                 task.id === taskId
                   ? {
-                      ...task,
-                      status: updatedStatus,
-                      done: updatedStatus === "Done" || updatedStatus === "Completed",
-                    }
+                    ...task,
+                    status: updatedStatus,
+                    done: updatedStatus === "Done" || updatedStatus === "Completed",
+                  }
                   : task
               )
             );
@@ -380,13 +380,12 @@ export function ProjectDetailClient({ projectId }: ProjectDetailClientProps) {
           {tasksByStage.map((stage, index) => (
             <div key={`${stage.label}-${index}`} className="flex items-center gap-3">
               <div
-                className={`grid size-9 place-items-center rounded-full border ${
-                  stageStates[index] === "done"
+                className={`grid size-9 place-items-center rounded-full border ${stageStates[index] === "done"
                     ? "border-indigo-200 bg-indigo-50 text-indigo-600"
                     : stageStates[index] === "active"
                       ? "border-slate-900 text-slate-900"
                       : "border-slate-200 text-slate-400"
-                }`}
+                  }`}
               >
                 {stageStates[index] === "done" ? (
                   <CheckCircle2 className="size-4" />
@@ -396,9 +395,8 @@ export function ProjectDetailClient({ projectId }: ProjectDetailClientProps) {
               </div>
               <div className="space-y-0.5">
                 <p
-                  className={`text-sm font-semibold ${
-                    stageStates[index] === "upcoming" ? "text-slate-400" : "text-slate-800"
-                  }`}
+                  className={`text-sm font-semibold ${stageStates[index] === "upcoming" ? "text-slate-400" : "text-slate-800"
+                    }`}
                 >
                   {stage.label}
                 </p>
@@ -505,75 +503,7 @@ export function ProjectDetailClient({ projectId }: ProjectDetailClientProps) {
         </CardContent>
       </Card>
 
-      <Card className="border-slate-200 shadow-sm">
-        <CardContent className="p-6">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <div>
-              <h2 className="text-lg font-semibold text-slate-900">
-                Stage: {activeStage.label}
-              </h2>
-              <p className="text-xs text-slate-500">
-                {hasAnyTasks
-                  ? "Checklist task harus selesai sebelum approval stage."
-                  : "Belum ada task dari team member di stage ini."}
-              </p>
-            </div>
-            <div className="flex items-center gap-2">
-              <Button variant="outline" className="gap-2">
-                <FileText className="size-4" />
-                Export
-              </Button>
-              <Button
-                className="bg-[#256eff] text-white hover:bg-[#1c55c7]"
-                disabled={
-                  stageApprovals[activeStage.id] === "Approved" ||
-                  !activeStage.tasks.length ||
-                  !activeStage.tasks.every((task) => task.done)
-                }
-                onClick={() => approveStage(activeStage.id)}
-              >
-                {stageApprovals[activeStage.id] === "Approved" ? "Approved" : "Approve Stage"}
-              </Button>
-            </div>
-          </div>
-          <div className="mt-4 overflow-hidden rounded-xl border border-slate-200">
-            <div className="divide-y divide-slate-200">
-              {activeStage.tasks.length === 0 ? (
-                <div className="px-4 py-6 text-sm text-slate-500">
-                  Belum ada task di stage ini.
-                </div>
-              ) : (
-                activeStage.tasks.map((task) => (
-                  <div
-                    key={task.id}
-                    className="grid grid-cols-[2fr,1fr,1fr,1fr] items-center gap-4 px-4 py-3 text-sm text-slate-700"
-                  >
-                    <div className="flex items-center gap-3">
-                      <input
-                        type="checkbox"
-                        className="size-4 rounded border-slate-300"
-                        checked={task.done}
-                        onChange={(event) => {
-                          void toggleTaskDone(task.id, event.target.checked);
-                        }}
-                        disabled={stageApprovals[activeStage.id] === "Approved"}
-                      />
-                      <span>{task.title}</span>
-                    </div>
-                    <span>{task.assignee}</span>
-                    <span>{task.due}</span>
-                    <span
-                      className={`inline-flex w-fit rounded-full px-2 py-1 text-xs font-semibold ${statusPill[task.status]}`}
-                    >
-                      {task.status}
-                    </span>
-                  </div>
-                ))
-              )}
-            </div>
-          </div>
-        </CardContent>
-      </Card>
+
 
     </div>
   );

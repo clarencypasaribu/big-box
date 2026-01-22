@@ -1,7 +1,8 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { Eye, Loader2, X } from "lucide-react";
+import { Eye, Folder, Loader2, Search, X } from "lucide-react";
+import { Input } from "@/components/ui/input";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -32,8 +33,27 @@ export function UsersTableClient({
   const [loadingId, setLoadingId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  const sortedUsers = useMemo(() => {
-    return [...users].sort((a, b) => a.name.localeCompare(b.name));
+  const [searchQuery, setSearchQuery] = useState("");
+  const [roleFilter, setRoleFilter] = useState<string>("all");
+  const [statusFilter, setStatusFilter] = useState<string>("all");
+
+  const filteredUsers = useMemo(() => {
+    return users.filter((user) => {
+      const matchSearch =
+        searchQuery === "" ||
+        user.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        user.email.toLowerCase().includes(searchQuery.toLowerCase());
+
+      const matchRole = roleFilter === "all" || (user.role ?? "").toLowerCase() === roleFilter.toLowerCase();
+      const matchStatus = statusFilter === "all" || user.status.toLowerCase() === statusFilter.toLowerCase();
+
+      return matchSearch && matchRole && matchStatus;
+    });
+  }, [users, searchQuery, roleFilter, statusFilter]);
+
+  const uniqueRoles = useMemo(() => {
+    const roles = new Set(users.map(u => u.role).filter(Boolean));
+    return Array.from(roles);
   }, [users]);
 
   async function updateStatus(userId: string, nextStatus: UserRow["status"]) {
@@ -62,6 +82,46 @@ export function UsersTableClient({
 
   return (
     <div className="space-y-3">
+      <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between p-1">
+        <div className="flex flex-1 items-center gap-3">
+          <div className="relative w-full max-w-sm">
+            <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-slate-400" />
+            <Input
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="h-10 rounded-lg border-slate-200 bg-white pl-10 text-sm focus-visible:ring-indigo-600"
+              placeholder="Search user by name or email..."
+            />
+          </div>
+
+          <Select value={roleFilter} onValueChange={setRoleFilter}>
+            <SelectTrigger className="h-10 w-[160px] rounded-lg border-slate-200 bg-white">
+              <div className="flex items-center gap-2">
+                <Folder className="size-4 text-slate-500" />
+                <SelectValue placeholder="All Roles" />
+              </div>
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Roles</SelectItem>
+              {uniqueRoles.map(role => (
+                <SelectItem key={role} value={role!}>{role}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+
+          <Select value={statusFilter} onValueChange={setStatusFilter}>
+            <SelectTrigger className="h-10 w-[140px] rounded-lg border-slate-200 bg-white">
+              <SelectValue placeholder="All Status" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Status</SelectItem>
+              <SelectItem value="Active">Active</SelectItem>
+              <SelectItem value="Inactive">Inactive</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+      </div>
+
       {error ? (
         <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
           {error}
@@ -90,14 +150,16 @@ export function UsersTableClient({
               </TableRow>
             </TableHeader>
             <TableBody>
-              {sortedUsers.length === 0 ? (
+              {filteredUsers.length === 0 ? (
                 <TableRow>
                   <TableCell colSpan={5} className="py-6 text-center text-sm text-slate-500">
-                    Belum ada user terdaftar.
+                    {searchQuery || roleFilter !== "all" || statusFilter !== "all"
+                      ? "Tidak ada user yang cocok dengan filter."
+                      : "Belum ada user terdaftar."}
                   </TableCell>
                 </TableRow>
               ) : (
-                sortedUsers.map((user) => (
+                filteredUsers.map((user) => (
                   <TableRow key={user.id} className="border-slate-200 text-sm hover:bg-slate-50/80">
                     <TableCell className="font-semibold text-slate-900">{user.name}</TableCell>
                     <TableCell className="text-slate-600">{user.email}</TableCell>

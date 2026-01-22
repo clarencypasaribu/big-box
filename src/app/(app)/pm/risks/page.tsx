@@ -76,9 +76,70 @@ async function loadRiskStats() {
   ];
 }
 
+async function loadBlockers(pmId: string) {
+  if (!pmId) return [];
+
+  const supabase = await createSupabaseServiceClient();
+  const { data: blockers } = await supabase
+    .from("blockers")
+    .select(
+      "id,task_id,task_title,project_id,project_name,title,product,reason,notes,reporter_name,status,created_at"
+    )
+    .eq("pm_id", pmId)
+    .order("created_at", { ascending: false });
+
+  if (!blockers || blockers.length === 0) return [];
+
+  // Fetch files
+  const blockerIds = blockers.map(b => b.id);
+  const { data: files } = await supabase
+    .from("files")
+    .select("id,name,size,type,entity_id")
+    .in("entity_id", blockerIds)
+    .eq("entity_type", "blocker");
+
+  // Transform for client
+  return blockers.map((blocker: any, index: number) => ({
+    id: blocker.id,
+    code: `#BLK-${new Date(blocker.created_at).getFullYear()}-${String(index + 100).padStart(3, "0")}`,
+    title: blocker.title || blocker.reason || blocker.task_title || "Untitled Blocker",
+    description: blocker.notes || blocker.reason || "No description provided.",
+    project: blocker.project_name || "Unknown Project",
+    product: blocker.product || "Other",
+    reporter: blocker.reporter_name || "Unknown",
+    assignee: "Unassigned",
+    status: blocker.status || "Open",
+    reportDate: new Date(blocker.created_at).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" }),
+    attachments: files?.filter((f) => f.entity_id === blocker.id).map((f) => ({
+      id: f.id,
+      name: f.name,
+      size: f.size ? `${Math.round(f.size / 1024)} KB` : "0 KB",
+      type: f.type
+    })) ?? [],
+  }));
+}
+
+async function loadTeamMembers() {
+  const supabase = await createSupabaseServiceClient();
+  const { data } = await supabase
+    .from("profiles")
+    .select("id, full_name, role")
+    .or("role.eq.Team Member,role.eq.team_member,role.eq.team member")
+    .order("full_name");
+
+  return data?.map((p: any) => ({
+    id: p.id,
+    name: p.full_name || "Unknown",
+    role: p.role || "Team Member",
+    activeTasks: 0, // Placeholder
+  })) || [];
+}
+
 export default async function PMRisksPage() {
   const profile = await getCurrentUserProfile();
   const stats = await loadRiskStats();
+  const blockers = await loadBlockers(profile.id || "");
+  const teamMembers = await loadTeamMembers();
 
   return (
     <div className="min-h-screen bg-[#f7f7f9] text-slate-900">
@@ -93,23 +154,7 @@ export default async function PMRisksPage() {
                 Monitor laporan blocker, mitigasi risiko critical, dan assign team member.
               </p>
             </div>
-            <div className="flex flex-wrap items-center gap-3">
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-slate-400" />
-                <Input
-                  placeholder="Seach blocker..."
-                  className="h-10 w-[240px] rounded-lg border-slate-200 bg-white pl-9 text-sm shadow-sm placeholder:text-slate-400 focus-visible:ring-indigo-500"
-                />
-              </div>
-              <Button variant="outline" className="h-10 gap-2 rounded-lg border-slate-200 bg-white font-medium text-slate-700 hover:bg-slate-50 hover:text-indigo-600">
-                <Filter className="size-4" />
-                <span>Filter</span>
-              </Button>
-              <Button variant="outline" className="h-10 gap-2 rounded-lg border-slate-200 bg-white font-medium text-slate-700 hover:bg-slate-50 hover:text-indigo-600">
-                <Bell className="size-4" />
-                <span>Alerts</span>
-              </Button>
-            </div>
+
           </div>
 
           <div className="grid gap-4 md:grid-cols-3">
@@ -131,7 +176,7 @@ export default async function PMRisksPage() {
             ))}
           </div>
 
-          <RisksClient />
+          <RisksClient initialData={blockers as any} teamMembers={teamMembers} />
         </main>
       </div>
     </div>

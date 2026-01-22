@@ -118,24 +118,7 @@ export default async function PMUsersPage() {
           ) : null}
 
           <div className="flex flex-col gap-3 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-            <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-              <div className="flex w-full flex-col gap-2 sm:flex-row sm:items-center sm:gap-3 md:w-auto">
-                <div className="relative w-full sm:w-64">
-                  <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-slate-400" />
-                  <Input
-                    className="h-11 rounded-md border-slate-200 bg-slate-50 pl-10 text-sm"
-                    placeholder="Search user"
-                  />
-                </div>
-                <Button
-                  variant="outline"
-                  className="h-11 rounded-md border-slate-200 bg-slate-50 text-slate-700 hover:bg-slate-100"
-                >
-                  <Folder className="size-4" />
-                  Filter
-                </Button>
-              </div>
-            </div>
+
 
             <UsersTableClient initialUsers={users} supportsStatus={supportsStatus} />
           </div>
