@@ -129,15 +129,15 @@ export function ProjectDetailClient({ projectId }: ProjectDetailClientProps) {
       const tasksBody = tasksRes.ok ? await tasksRes.json() : { data: [] };
       const approvalsBody = approvalsRes.ok ? await approvalsRes.json() : { data: [] };
 
-        const normalizedTasks: StageTask[] = (tasksBody.data ?? []).map((task: any) => ({
-          id: task.id,
-          title: task.title ?? "Untitled Task",
-          assignee: task.assignee ?? "",
-          due: task.due_date ?? "",
-          status: task.status ?? "Not Started",
-          done: task.status === "Done" || task.status === "Completed",
-          stage: task.stage ?? "stage-1",
-        }));
+      const normalizedTasks: StageTask[] = (tasksBody.data ?? []).map((task: any) => ({
+        id: task.id,
+        title: task.title ?? "Untitled Task",
+        assignee: task.assignee ?? "",
+        due: task.due_date ?? "",
+        status: task.status ?? "Not Started",
+        done: task.status === "Done" || task.status === "Completed",
+        stage: task.stage ?? "stage-1",
+      }));
 
       const approvalsMap: Record<string, string> = {};
       (approvalsBody.data ?? []).forEach((row: any) => {
@@ -272,10 +272,10 @@ export function ProjectDetailClient({ projectId }: ProjectDetailClientProps) {
       prev.map((task) =>
         task.id === taskId
           ? {
-              ...task,
-              done: nextDone,
-              status: nextDone ? "Done" : "In Progress",
-            }
+            ...task,
+            done: nextDone,
+            status: nextDone ? "Done" : "In Progress",
+          }
           : task
       )
     );
@@ -293,10 +293,10 @@ export function ProjectDetailClient({ projectId }: ProjectDetailClientProps) {
             prev.map((task) =>
               task.id === taskId
                 ? {
-                    ...task,
-                    status: updatedStatus,
-                    done: updatedStatus === "Done" || updatedStatus === "Completed",
-                  }
+                  ...task,
+                  status: updatedStatus,
+                  done: updatedStatus === "Done" || updatedStatus === "Completed",
+                }
                 : task
             )
           );
@@ -317,10 +317,10 @@ export function ProjectDetailClient({ projectId }: ProjectDetailClientProps) {
               prev.map((task) =>
                 task.id === taskId
                   ? {
-                      ...task,
-                      status: updatedStatus,
-                      done: updatedStatus === "Done" || updatedStatus === "Completed",
-                    }
+                    ...task,
+                    status: updatedStatus,
+                    done: updatedStatus === "Done" || updatedStatus === "Completed",
+                  }
                   : task
               )
             );
@@ -381,13 +381,12 @@ export function ProjectDetailClient({ projectId }: ProjectDetailClientProps) {
           {tasksByStage.map((stage, index) => (
             <div key={`${stage.label}-${index}`} className="flex items-center gap-3">
               <div
-                className={`grid size-9 place-items-center rounded-full border ${
-                  stageStates[index] === "done"
+                className={`grid size-9 place-items-center rounded-full border ${stageStates[index] === "done"
                     ? "border-indigo-200 bg-indigo-50 text-indigo-600"
                     : stageStates[index] === "active"
                       ? "border-slate-900 text-slate-900"
                       : "border-slate-200 text-slate-400"
-                }`}
+                  }`}
               >
                 {stageStates[index] === "done" ? (
                   <CheckCircle2 className="size-4" />
@@ -397,9 +396,8 @@ export function ProjectDetailClient({ projectId }: ProjectDetailClientProps) {
               </div>
               <div className="space-y-0.5">
                 <p
-                  className={`text-sm font-semibold ${
-                    stageStates[index] === "upcoming" ? "text-slate-400" : "text-slate-800"
-                  }`}
+                  className={`text-sm font-semibold ${stageStates[index] === "upcoming" ? "text-slate-400" : "text-slate-800"
+                    }`}
                 >
                   {stage.label}
                 </p>
@@ -505,6 +503,8 @@ export function ProjectDetailClient({ projectId }: ProjectDetailClientProps) {
           </div>
         </CardContent>
       </Card>
+
+
 
     </div>
   );

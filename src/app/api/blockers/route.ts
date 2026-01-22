@@ -57,11 +57,17 @@ async function getUserId(request: Request) {
 export async function GET(request: Request) {
   try {
     const userId = await getUserId(request);
+    console.log("[API Default] /api/blockers user:", userId);
+
     if (!userId) {
       return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
     }
 
     const supabase = await createSupabaseServiceClient({ allowWrite: true });
+
+    // Debug: check query
+    console.log("[API Default] Querying blockers for pm_id:", userId);
+
     const { data: blockers, error } = await supabase
       .from("blockers")
       .select(
@@ -69,6 +75,8 @@ export async function GET(request: Request) {
       )
       .eq("pm_id", userId)
       .order("created_at", { ascending: false });
+
+    console.log("[API Default] Found blockers:", blockers?.length, "Error:", error);
 
     if (error) {
       return NextResponse.json({ message: error.message }, { status: 400 });

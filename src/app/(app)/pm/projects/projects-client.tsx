@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Eye, Loader2, MoreHorizontal, Pencil, Plus, Trash2 } from "lucide-react";
+import { Eye, Loader2, MoreHorizontal, Pencil, Plus, Search, Trash2 } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -412,13 +412,27 @@ export function ProjectsClient({ initialProjects }: { initialProjects: ProjectRo
     setTeamSearch("");
   }
 
+  const [projectSearch, setProjectSearch] = useState("");
+
   const filteredTeam = useMemo(() => {
     const term = teamSearch.trim().toLowerCase();
     if (!term) return teamOptions;
     return teamOptions.filter((name) => name.toLowerCase().includes(term));
   }, [teamOptions, teamSearch]);
 
-  const hasData = useMemo(() => projects.length > 0, [projects.length]);
+  const filteredProjects = useMemo(() => {
+    const term = projectSearch.trim().toLowerCase();
+    if (!term) return projects;
+    return projects.filter(
+      (p) =>
+        p.name.toLowerCase().includes(term) ||
+        (p.code || "").toLowerCase().includes(term) ||
+        p.location.toLowerCase().includes(term) ||
+        p.lead.toLowerCase().includes(term)
+    );
+  }, [projects, projectSearch]);
+
+  const hasData = useMemo(() => filteredProjects.length > 0, [filteredProjects.length]);
 
   return (
     <div className="flex flex-col gap-3 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
@@ -427,15 +441,27 @@ export function ProjectsClient({ initialProjects }: { initialProjects: ProjectRo
           <p className="text-sm font-semibold text-slate-800">Projects</p>
           <p className="text-xs text-slate-500">Create, update, or remove project records.</p>
         </div>
-        <div className="flex items-center gap-2">
-          <Button variant="outline" className="gap-2" onClick={fetchProjects} disabled={loading}>
-            {loading ? <Loader2 className="size-4 animate-spin" /> : null}
-            Refresh
-          </Button>
-          <Button className="bg-[#256eff] text-white hover:bg-[#1c55c7]" onClick={openCreateDialog}>
-            <Plus className="mr-2 size-4" />
-            Add Project
-          </Button>
+        <div className="flex flex-1 items-center justify-end gap-3">
+          <div className="relative w-full max-w-xs">
+            <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-slate-400" />
+            <Input
+              value={projectSearch}
+              onChange={(e) => setProjectSearch(e.target.value)}
+              className="h-9 w-full rounded-md border-slate-200 bg-slate-50 pl-10 text-sm focus:bg-white focus:ring-2 focus:ring-indigo-500/20"
+              placeholder="Search projects..."
+            />
+          </div>
+
+          <div className="flex items-center gap-2">
+            <Button variant="outline" className="gap-2" onClick={fetchProjects} disabled={loading}>
+              {loading ? <Loader2 className="size-4 animate-spin" /> : null}
+              Refresh
+            </Button>
+            <Button className="bg-[#256eff] text-white hover:bg-[#1c55c7]" onClick={openCreateDialog}>
+              <Plus className="mr-2 size-4" />
+              Add Project
+            </Button>
+          </div>
         </div>
       </div>
 
@@ -459,7 +485,7 @@ export function ProjectsClient({ initialProjects }: { initialProjects: ProjectRo
               </TableCell>
             </TableRow>
           ) : hasData ? (
-            projects.map((project) => (
+            filteredProjects.map((project) => (
               <TableRow key={project.id ?? project.name}>
                 <TableCell>
                   <div className="leading-tight">
@@ -533,7 +559,7 @@ export function ProjectsClient({ initialProjects }: { initialProjects: ProjectRo
           ) : (
             <TableRow>
               <TableCell colSpan={7} className="py-6 text-center text-slate-500">
-                Belum ada project. Tambahkan dari tombol &quot;Add Project&quot;.
+                {projectSearch ? "Tidak ada project yang cocok dengan pencarian." : "Belum ada project. Tambahkan dari tombol \"Add Project\"."}
               </TableCell>
             </TableRow>
           )}

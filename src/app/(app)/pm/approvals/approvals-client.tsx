@@ -14,6 +14,15 @@ import {
   XCircle,
 } from "lucide-react";
 
+import {
+  DropdownMenu,
+  DropdownMenuCheckboxItem,
+  DropdownMenuContent,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+
 function safeDateFormat(dateStr: string) {
   try {
     const date = new Date(dateStr);
@@ -74,6 +83,7 @@ export type StageFile = {
   name: string;
   owner: string;
   size: string;
+  stageLabel?: string;
 };
 
 export type ApprovalDetail = {
@@ -140,6 +150,7 @@ export function ApprovalsClient({
   details?: Record<string, ApprovalDetail>;
 }) {
   const [search, setSearch] = useState("");
+  const [selectedStages, setSelectedStages] = useState<Set<string>>(new Set());
   const [items, setItems] = useState<ApprovalRow[]>(rows);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [detailCache, setDetailCache] = useState<Record<string, ApprovalDetail>>(details);
@@ -148,12 +159,20 @@ export function ApprovalsClient({
 
   const filteredRows = useMemo(() => {
     const term = search.trim().toLowerCase();
-    if (!term) return items;
+
     return items.filter((row) => {
+      // Search filter
       const haystack = `${row.name} ${row.code ?? ""} ${row.location} ${row.stage} ${row.team.join(" ")}`.toLowerCase();
-      return haystack.includes(term);
+      const matchesSearch = !term || haystack.includes(term);
+
+      // Stage filter
+      // Extract code from "F1 - Initiation" -> "F1" to match filter keys
+      const rowStageCode = row.stage.split(" - ")[0];
+      const matchesStage = selectedStages.size === 0 || selectedStages.has(rowStageCode);
+
+      return matchesSearch && matchesStage;
     });
-  }, [items, search]);
+  }, [items, search, selectedStages]);
 
   const selectedDetail = selectedId ? detailCache[selectedId] : null;
 
@@ -214,18 +233,18 @@ export function ApprovalsClient({
 
       const stageFiles: StageFile[] = [];
       (tasksBody.data ?? [])
-        .filter((task: any) => normalizeStageId(task.stage) === currentStageMeta.id)
+        // Show files from ALL stages so PM can review past/future deliverables
+        // .filter((task: any) => normalizeStageId(task.stage) === currentStageMeta.id)
         .forEach((task: any) => {
           if (task.files && Array.isArray(task.files)) {
             task.files.forEach((f: any) => {
+              const taskStageMeta = stageMeta(normalizeStageId(task.stage));
               stageFiles.push({
                 id: f.id,
                 name: f.name,
-                owner: task.assignee || "Team", // tasks don't always have assignee name in this payload, but fair enough
+                owner: task.assignee || "Team",
                 size: f.size ? `${Math.round(f.size / 1024)} KB` : "0 KB",
-                // We need a way to download. For now assuming we can fetch by file ID or data is not here.
-                // The /api/project-tasks did NOT return 'data' (base64) to save bandwidth.
-                // We need a download endpoint.
+                stageLabel: taskStageMeta.code, // Add stage label
               });
             });
           }
@@ -303,14 +322,42 @@ export function ApprovalsClient({
                 placeholder="Cari project atau kode"
               />
             </div>
-            <Button
-              variant="outline"
-              className="h-11 rounded-md border-slate-200 bg-slate-50 text-slate-700 hover:bg-slate-100"
-              type="button"
-            >
-              <Filter className="size-4" />
-              Filter
-            </Button>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  variant="outline"
+                  className="h-11 gap-2 rounded-md border-slate-200 bg-slate-50 text-slate-700 hover:bg-slate-100"
+                >
+                  <Filter className="size-4" />
+                  Filter
+                  {selectedStages.size > 0 && (
+                    <span className="ml-1 rounded-full bg-slate-200 px-1.5 py-0.5 text-[10px] font-bold">
+                      {selectedStages.size}
+                    </span>
+                  )}
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-48 bg-white">
+                <DropdownMenuLabel>Filter Stage</DropdownMenuLabel>
+                <DropdownMenuSeparator />
+                {stageDefinitions.map((stage) => (
+                  <DropdownMenuCheckboxItem
+                    key={stage.id}
+                    checked={selectedStages.has(stage.code)}
+                    onCheckedChange={(checked) => {
+                      setSelectedStages((prev) => {
+                        const next = new Set(prev);
+                        if (checked) next.add(stage.code);
+                        else next.delete(stage.code);
+                        return next;
+                      });
+                    }}
+                  >
+                    {stage.code} - {stage.title}
+                  </DropdownMenuCheckboxItem>
+                ))}
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
         </div>
 
@@ -547,7 +594,14 @@ export function ApprovalsClient({
                                   <File className="size-4" />
                                 </span>
                                 <div className="leading-tight">
-                                  <p className="font-semibold text-slate-900">{file.name}</p>
+                                  <div className="flex items-center gap-2">
+                                    <p className="font-semibold text-slate-900">{file.name}</p>
+                                    {file.stageLabel && (
+                                      <span className="rounded bg-slate-100 px-1.5 py-0.5 text-[10px] font-bold text-slate-500">
+                                        {file.stageLabel}
+                                      </span>
+                                    )}
+                                  </div>
                                   <p className="text-xs text-slate-500">
                                     {file.owner} • {file.size}
                                   </p>
