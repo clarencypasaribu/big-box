@@ -537,10 +537,10 @@ export function ProjectBoardClient({
                                         return {
                                           ...item,
                                           status,
-                                          cards:
-                                            status === "Completed"
-                                              ? item.cards.map((card) => ({ ...card, done: true }))
-                                              : item.cards,
+                                          cards: item.cards.map((card) => ({
+                                            ...card,
+                                            done: status === "Completed",
+                                          })),
                                         };
                                       })
                                     );
