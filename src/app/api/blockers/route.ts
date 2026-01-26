@@ -143,7 +143,7 @@ export async function POST(request: Request) {
     const notes = body.notes ? String(body.notes).trim() : "";
 
     if (!taskId) {
-      return NextResponse.json({ message: "Task wajib diisi" }, { status: 400 });
+      return NextResponse.json({ message: "Task is required." }, { status: 400 });
     }
 
     if (!title && !reason && !notes) {
@@ -260,6 +260,6 @@ export async function POST(request: Request) {
 
     return NextResponse.json({ data });
   } catch (error) {
-    return NextResponse.json({ message: "Gagal mengirim blocker" }, { status: 500 });
+    return NextResponse.json({ message: "Failed to send blocker." }, { status: 500 });
   }
 }

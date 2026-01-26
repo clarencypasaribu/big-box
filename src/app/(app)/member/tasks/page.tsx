@@ -8,22 +8,12 @@ export default async function MemberTasksPage() {
   const memberProjects = await getMemberProjects(profile.id);
 
   return (
-    <div className="min-h-screen bg-[#f7f7f9] text-slate-900">
-      <div className="mx-auto flex max-w-screen-2xl gap-6 px-4 py-8 lg:px-8">
-        <MemberSidebar
-          profile={profile}
-          active="task"
-          taskHref="/member/tasks"
-          projects={memberProjects}
-        />
-        <main className="flex-1 space-y-6">
-          <header className="space-y-2">
-            <h1 className="text-3xl font-semibold text-slate-900">My Tasks</h1>
-            <p className="text-slate-600">Semua task dari project yang kamu ikuti.</p>
-          </header>
-          <AllTasksClient projects={memberProjects} />
-        </main>
-      </div>
+    <div className="space-y-6">
+      <header className="space-y-2">
+        <h1 className="text-3xl font-semibold text-slate-900">My Tasks</h1>
+        <p className="text-slate-600">All tasks from the projects you are part of.</p>
+      </header>
+      <AllTasksClient projects={memberProjects} />
     </div>
   );
 }

@@ -259,7 +259,7 @@ export function ApprovalsClient({
         files: stageFiles
       };
     } catch (error) {
-      setDetailError(error instanceof Error ? error.message : "Gagal memuat detail approval");
+      setDetailError(error instanceof Error ? error.message : "Failed to load approval details.");
       return null;
     } finally {
       setLoadingDetail(false);
@@ -282,7 +282,7 @@ export function ApprovalsClient({
       stageCode: result.currentStageMeta.code,
       nextStage: result.nextStageMeta.title,
       nextStageCode: result.nextStageMeta.code,
-      note: "Pastikan seluruh task pada stage ini sudah lengkap sebelum approve.",
+      note: "Make sure all tasks in this stage are complete before approval.",
       phases: result.phases,
       tasks: result.activeTasks,
       files: result.files,
@@ -319,7 +319,7 @@ export function ApprovalsClient({
                 value={search}
                 onChange={(event) => setSearch(event.target.value)}
                 className="h-11 rounded-md border-slate-200 bg-slate-50 pl-10 text-sm"
-                placeholder="Cari project atau kode"
+                placeholder="Search project or code"
               />
             </div>
             <DropdownMenu>
@@ -387,7 +387,7 @@ export function ApprovalsClient({
                 {filteredRows.length === 0 ? (
                   <TableRow>
                     <TableCell colSpan={5} className="py-6 text-center text-sm text-slate-500">
-                      Tidak ada approval menunggu. Semua state sudah disetujui.
+                      No pending approvals. All stages are approved.
                     </TableCell>
                   </TableRow>
                 ) : (
@@ -410,7 +410,7 @@ export function ApprovalsClient({
                                 </span>
                               ) : null}
                             </div>
-                            <p className="text-xs text-slate-500">Lokasi: {project.location || "Tidak ada lokasi"}</p>
+                            <p className="text-xs text-slate-500">Location: {project.location || "No location"}</p>
                           </div>
                         </div>
                       </TableCell>
@@ -434,7 +434,7 @@ export function ApprovalsClient({
                       <TableCell className="min-w-[150px]">
                         <div className="space-y-1">
                           <p className="text-sm font-semibold text-slate-900">{project.stage}</p>
-                          <p className="text-xs text-slate-500">Menunggu approval</p>
+                          <p className="text-xs text-slate-500">Awaiting approval</p>
                         </div>
                       </TableCell>
 
@@ -450,7 +450,7 @@ export function ApprovalsClient({
                           variant="outline"
                           size="sm"
                           className="gap-2 rounded-full border-slate-200 text-slate-700 hover:bg-slate-100"
-                          aria-label={`Lihat detail ${project.name}`}
+                          aria-label={`View details for ${project.name}`}
                           onClick={() => handleSelect(project)}
                         >
                           <Eye className="size-4" />
@@ -532,12 +532,12 @@ export function ApprovalsClient({
                       <div className="flex items-center justify-between">
                         <h3 className="text-lg font-semibold text-slate-900">Task Per Phase</h3>
                         <Badge className="rounded-full bg-emerald-50 text-emerald-700">
-                          {selectedDetail.tasks.filter((task) => task.done).length}/{selectedDetail.tasks.length} selesai
+                          {selectedDetail.tasks.filter((task) => task.done).length}/{selectedDetail.tasks.length} complete
                         </Badge>
                       </div>
                       <div className="space-y-3">
                         {selectedDetail.tasks.length === 0 ? (
-                          <p className="text-sm text-slate-500">Tidak ada task pada stage ini.</p>
+                          <p className="text-sm text-slate-500">No tasks for this stage.</p>
                         ) : (
                           selectedDetail.tasks.map((task) => (
                             <div
@@ -555,7 +555,7 @@ export function ApprovalsClient({
                               <div className="space-y-1">
                                 <p className="font-semibold text-slate-900">{task.title}</p>
                                 <p className="text-xs text-slate-500">
-                                  {task.owner ? `Owner: ${task.owner}` : "Owner belum diisi"}
+                                  {task.owner ? `Owner: ${task.owner}` : "Owner not set"}
                                   {task.updated ? ` • Update: ${task.updated}` : ""}
                                 </p>
                               </div>
@@ -566,7 +566,7 @@ export function ApprovalsClient({
                       {selectedDetail.tasks.length > 0 && selectedDetail.tasks.every((t) => t.done) && (
                         <div className="flex items-center gap-2 rounded-lg bg-emerald-50 px-3 py-2 text-sm font-semibold text-emerald-700">
                           <CheckCircle2 className="size-4" />
-                          Semua task pada phase ini sudah dicek tim.
+                          All tasks in this phase have been reviewed.
                         </div>
                       )}
                     </CardContent>
@@ -575,14 +575,14 @@ export function ApprovalsClient({
                   <Card className="border-slate-200 shadow-sm">
                     <CardContent className="space-y-3 p-4 md:p-5">
                       <div className="flex items-center justify-between">
-                        <h3 className="text-lg font-semibold text-slate-900">Files dari Tim</h3>
+                        <h3 className="text-lg font-semibold text-slate-900">Files from the team</h3>
                         <Badge className="rounded-full bg-slate-100 text-slate-700">
                           {selectedDetail.files.length} file
                         </Badge>
                       </div>
                       <div className="space-y-2">
                         {selectedDetail.files.length === 0 ? (
-                          <p className="text-sm text-slate-500">Belum ada file terlampir.</p>
+                          <p className="text-sm text-slate-500">No files attached yet.</p>
                         ) : (
                           selectedDetail.files.map((file) => (
                             <div
@@ -614,7 +614,7 @@ export function ApprovalsClient({
                                 onClick={() => window.open(`/api/files?id=${file.id}`, "_blank")}
                               >
                                 <Download className="size-4" />
-                                Unduh
+                                Download
                               </Button>
                             </div>
                           ))
@@ -633,7 +633,7 @@ export function ApprovalsClient({
                           {selectedDetail.nextStageCode} - {selectedDetail.nextStage}
                         </p>
                         <p className="text-sm text-slate-600">
-                          Dengan menyetujui, semua deliverable untuk {selectedDetail.stageCode} telah dicek dan valid.
+                          By approving, all deliverables for {selectedDetail.stageCode} have been reviewed and validated.
                         </p>
                       </div>
                       <div className="flex flex-col gap-2 rounded-lg bg-slate-50 px-3 py-2 text-sm text-slate-700">
@@ -641,7 +641,7 @@ export function ApprovalsClient({
                           <ArrowRight className="size-4 text-indigo-600" />
                           Team approval
                         </div>
-                        <p>Pastikan semua checklist selesai dan file pendukung telah di-review.</p>
+                        <p>Make sure all checklists are complete and supporting files have been reviewed.</p>
                       </div>
                       <div className="flex flex-col gap-2 sm:flex-row">
                         <Button
@@ -655,7 +655,7 @@ export function ApprovalsClient({
                           className="flex-1 bg-indigo-600 text-white hover:bg-indigo-700"
                           onClick={handleApprove}
                         >
-                          Approve & Hapus dari daftar
+                          Approve & remove from list
                         </Button>
                       </div>
                     </CardContent>
@@ -664,13 +664,13 @@ export function ApprovalsClient({
                   <Card className="border-slate-200 shadow-sm">
                     <CardContent className="space-y-3 p-4 md:p-5">
                       <div className="flex items-center justify-between">
-                        <h3 className="text-lg font-semibold text-slate-900">Task Stage Ini</h3>
+                        <h3 className="text-lg font-semibold text-slate-900">Tasks in this stage</h3>
                         <Badge className="rounded-full bg-slate-100 text-slate-700">
                           {selectedDetail.tasks.length} task
                         </Badge>
                       </div>
                       {selectedDetail.tasks.length === 0 ? (
-                        <p className="text-sm text-slate-500">Belum ada task dari team member.</p>
+                        <p className="text-sm text-slate-500">No tasks from team members yet.</p>
                       ) : (
                         <div className="space-y-2">
                           {selectedDetail.tasks.map((task) => (
@@ -688,7 +688,7 @@ export function ApprovalsClient({
                               <div className="space-y-1">
                                 <p className="text-sm font-semibold text-slate-900">{task.title}</p>
                                 <p className="text-xs text-slate-500">
-                                  {task.owner ? `Assignee: ${task.owner}` : "Assignee belum diisi"}
+                                  {task.owner ? `Assignee: ${task.owner}` : "Assignee not set"}
                                   {task.updated ? ` • Update: ${task.updated}` : ""}
                                 </p>
                               </div>
@@ -701,10 +701,10 @@ export function ApprovalsClient({
 
                   <Card className="border-slate-200 shadow-sm">
                     <CardContent className="space-y-2 p-4 md:p-5">
-                      <p className="text-sm font-semibold text-slate-800">Approval akan menghapus item ini</p>
+                      <p className="text-sm font-semibold text-slate-800">Approval will remove this item</p>
                       <p className="text-xs text-slate-600">
-                        Setelah disetujui, state ini tidak lagi muncul di daftar approval utama. Pastikan kamu sudah
-                        mengarsipkan catatan dan file penting.
+                        Once approved, this stage will no longer appear in the main approvals list. Make sure you have
+                        archived notes and important files.
                       </p>
                     </CardContent>
                   </Card>

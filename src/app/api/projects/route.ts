@@ -129,7 +129,7 @@ async function syncProjectMembers(
       title: "Added to Project",
       message: `You have been added to project "${projectName}".`,
       type: "PROJECT_ASSIGNED",
-      link: `/projects/${projectId}`,
+      link: `/member/project/${projectId}`,
     }));
     await supabase.from("notifications").insert(notifications);
   }
@@ -185,7 +185,7 @@ export async function POST(request: Request) {
     };
 
     if (!payload.name) {
-      return NextResponse.json({ message: "Nama project wajib diisi" }, { status: 400 });
+      return NextResponse.json({ message: "Project name is required." }, { status: 400 });
     }
 
     const supabase = await createSupabaseServiceClient({ allowWrite: true });
@@ -224,6 +224,6 @@ export async function POST(request: Request) {
 
     return NextResponse.json({ data });
   } catch (error) {
-    return NextResponse.json({ message: "Gagal menambah project" }, { status: 500 });
+    return NextResponse.json({ message: "Failed to add project." }, { status: 500 });
   }
 }

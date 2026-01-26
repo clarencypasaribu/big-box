@@ -16,6 +16,6 @@ export async function GET() {
 
     return NextResponse.json({ data });
   } catch (error) {
-    return NextResponse.json({ message: "Gagal memuat profiles" }, { status: 500 });
+    return NextResponse.json({ message: "Failed to load profiles." }, { status: 500 });
   }
 }

@@ -24,11 +24,11 @@ model blockers {
   reporter_id   String   @db.Uuid
   reporter_name String?
   pm_id         String   @db.Uuid
-  assignee_id   String?  @db.Uuid
-  assignee_name String?
   status        String   @default("Open")
   created_at    DateTime @default(now()) @db.Timestamptz(6)
   updated_at    DateTime @default(now()) @db.Timestamptz(6)
+  assignee_id   String?  @db.Uuid
+  assignee_name String?
 
   @@schema("public")
 }
@@ -150,11 +150,11 @@ model tasks {
   priority      String?
   stage         String?
   due_date      String?
-  phase         String?
-  assignee      String?
   project_id    String          @db.Uuid
   created_at    DateTime        @default(now()) @db.Timestamptz(6)
   updated_at    DateTime        @default(now()) @db.Timestamptz(6)
+  assignee      String?
+  phase         String?
   task_comments task_comments[]
   projects      projects        @relation(fields: [project_id], references: [id])
 
@@ -162,14 +162,14 @@ model tasks {
 }
 
 model notifications {
-  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  user_id     String   @db.Uuid
-  title       String
-  message     String
-  type        String
-  link        String?
-  is_read     Boolean  @default(false)
-  created_at  DateTime @default(now()) @db.Timestamptz(6)
+  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  user_id    String   @db.Uuid
+  title      String
+  message    String
+  type       String
+  link       String?
+  is_read    Boolean  @default(false)
+  created_at DateTime @default(now()) @db.Timestamptz(6)
 
   @@schema("public")
 }

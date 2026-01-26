@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { LogOut, Mail, UserRound } from "lucide-react";
+import { LogOut, Mail, Settings, User, UserRound } from "lucide-react";
 import { useRouter } from "next/navigation";
 
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -15,6 +15,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { supabase } from "@/utils/supabase";
 import type { SidebarProfileData } from "@/utils/current-user";
+import Link from "next/link";
 
 type SidebarProfileProps = {
   profile: SidebarProfileData;
@@ -69,6 +70,7 @@ export function SidebarProfile({ profile }: SidebarProfileProps) {
             <p className="text-sm font-semibold text-slate-900">{profile.name}</p>
             <p className="text-xs text-slate-500">{workspaceLabel}</p>
           </div>
+          <Settings className="size-5 text-slate-500" />
         </button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-72">
@@ -94,6 +96,14 @@ export function SidebarProfile({ profile }: SidebarProfileProps) {
         {error ? (
           <div className="px-2 py-1 text-xs text-red-600">{error}</div>
         ) : null}
+        <DropdownMenuSeparator />
+        <DropdownMenuItem asChild>
+          <Link href="/member/settings" className="flex items-center gap-2 text-slate-700 cursor-pointer">
+            <User className="size-4 text-slate-500" />
+            <span>Detail Profile</span>
+          </Link>
+        </DropdownMenuItem>
+
         <DropdownMenuSeparator />
         <DropdownMenuItem
           onClick={handleLogout}

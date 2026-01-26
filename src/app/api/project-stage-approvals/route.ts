@@ -41,7 +41,7 @@ export async function GET(request: Request) {
     const projectId = searchParams.get("projectId")?.trim();
 
     if (!projectId) {
-      return NextResponse.json({ message: "Project id wajib ada" }, { status: 400 });
+      return NextResponse.json({ message: "Project ID is required." }, { status: 400 });
     }
 
     const supabase = await createSupabaseServiceClient({ allowWrite: true });
@@ -56,7 +56,7 @@ export async function GET(request: Request) {
 
     return NextResponse.json({ data });
   } catch (error) {
-    return NextResponse.json({ message: "Gagal memuat approvals" }, { status: 500 });
+    return NextResponse.json({ message: "Failed to load approvals." }, { status: 500 });
   }
 }
 
@@ -69,7 +69,7 @@ export async function POST(request: Request) {
 
     if (!projectId || !stageId) {
       return NextResponse.json(
-        { message: "Project dan stage wajib diisi" },
+        { message: "Project and stage are required." },
         { status: 400 }
       );
     }
@@ -115,6 +115,6 @@ export async function POST(request: Request) {
 
     return NextResponse.json({ data });
   } catch (error) {
-    return NextResponse.json({ message: "Gagal mengirim approval" }, { status: 500 });
+    return NextResponse.json({ message: "Failed to send approval." }, { status: 500 });
   }
 }

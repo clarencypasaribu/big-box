@@ -24,7 +24,7 @@ export async function POST(request: Request) {
         const notes = body.notes ? String(body.notes).trim() : "";
 
         if (!taskId) {
-            return NextResponse.json({ message: "Task wajib diisi" }, { status: 400 });
+            return NextResponse.json({ message: "Task is required." }, { status: 400 });
         }
 
         const userId = await getUserId();
@@ -119,6 +119,6 @@ export async function POST(request: Request) {
             }
         });
     } catch (error) {
-        return NextResponse.json({ message: "Gagal submit deliverables" }, { status: 500 });
+        return NextResponse.json({ message: "Failed to submit deliverables." }, { status: 500 });
     }
 }

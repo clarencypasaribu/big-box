@@ -1,6 +1,10 @@
+"use client";
+
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 
 import { SidebarProfile } from "@/components/sidebar-profile";
+import { cn } from "@/lib/utils";
 import type { SidebarProfileData } from "@/utils/current-user";
 import {
   AlarmClock,
@@ -24,40 +28,34 @@ const navItems: NavItem[] = [
   { label: "Users", href: "/pm/users", icon: Users },
 ];
 
-export function PMSidebar({
-  currentPath,
-  profile,
-}: {
-  currentPath: string;
-  profile?: SidebarProfileData;
-}) {
+export function PMSidebar({ profile }: { profile?: SidebarProfileData }) {
+  const pathname = usePathname();
+
   return (
-    <aside className="hidden w-[230px] flex-col justify-between rounded-xl border border-slate-200 bg-white px-5 py-6 md:flex">
-      <div className="space-y-6">
-        <div className="flex items-center gap-3">
-          <div className="grid size-10 place-items-center rounded-full bg-[#e8defe] text-[#4d2ba3]">
-            <LayoutDashboard className="size-5" />
-          </div>
-          <div className="space-y-0.5">
-            <p className="text-xs font-medium uppercase tracking-[0.14em] text-[#4d2ba3]">
-              Logo
-            </p>
-            <p className="text-sm font-semibold text-slate-900">Control</p>
-          </div>
+    <aside className="sticky top-0 h-screen flex w-80 shrink-0 flex-col justify-between overflow-y-auto border-r border-slate-200 bg-[#0b1220] px-4 py-6 text-slate-300 shadow-lg shadow-black/20">
+      <div className="space-y-8">
+        <div className="flex items-center px-2">
+          <img src="/logo.png" alt="BigBox Logo" className="h-28 w-auto max-w-[200px] object-contain" />
         </div>
 
-        <nav className="space-y-1.5 text-sm font-semibold">
+        <nav className="space-y-2 text-sm font-medium">
           {navItems.map(({ label, href, icon: Icon }) => {
-            const active = currentPath.startsWith(href);
+            const active = pathname?.startsWith(href);
             return (
               <Link
                 key={label}
                 href={href}
-                className={`flex w-full items-center gap-3 rounded-lg px-3 py-2 transition ${
-                  active ? "bg-[#e8defe] text-[#2f1c70]" : "text-slate-600 hover:bg-slate-100"
-                }`}
+                className={cn(
+                  "relative flex w-full items-center gap-3 rounded-xl px-4 py-3 transition",
+                  active
+                    ? "bg-white/5 text-blue-300 shadow-sm shadow-black/10"
+                    : "text-slate-400 hover:bg-white/5 hover:text-white"
+                )}
               >
-                <Icon className="size-4" />
+                {active ? (
+                  <span className="absolute left-2 top-1/2 h-6 w-1 -translate-y-1/2 rounded-full bg-blue-500" />
+                ) : null}
+                <Icon className="size-5" />
                 <span className="flex-1 text-left">{label}</span>
               </Link>
             );

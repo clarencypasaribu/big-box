@@ -70,11 +70,11 @@ export function UsersTableClient({
       });
       if (!res.ok) {
         const body = await res.json().catch(() => ({}));
-        throw new Error(body.message || "Gagal memperbarui status user");
+        throw new Error(body.message || "Failed to update user status.");
       }
       setUsers((prev) => prev.map((user) => (user.id === userId ? { ...user, status: nextStatus } : user)));
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Gagal memperbarui status user");
+      setError(err instanceof Error ? err.message : "Failed to update user status.");
     } finally {
       setLoadingId(null);
     }
@@ -154,8 +154,8 @@ export function UsersTableClient({
                 <TableRow>
                   <TableCell colSpan={5} className="py-6 text-center text-sm text-slate-500">
                     {searchQuery || roleFilter !== "all" || statusFilter !== "all"
-                      ? "Tidak ada user yang cocok dengan filter."
-                      : "Belum ada user terdaftar."}
+                      ? "No users match the filters."
+                      : "No users registered yet."}
                   </TableCell>
                 </TableRow>
               ) : (
@@ -170,7 +170,7 @@ export function UsersTableClient({
                     </TableCell>
                     <TableCell>
                       {!(user.id || "").trim() && (
-                        <p className="mb-1 text-xs text-amber-600">ID user belum tersedia</p>
+                        <p className="mb-1 text-xs text-amber-600">User ID not available yet</p>
                       )}
                       <Select
                         value={user.status}

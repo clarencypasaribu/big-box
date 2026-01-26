@@ -197,12 +197,12 @@ export function AllTasksClient({ projects }: { projects: ProjectRef[] }) {
       if (res.ok) {
         setDeliverableOpen(false);
         fetchAllTasks();
-        alert("Deliverables berhasil dikirim!");
+        alert("Deliverables sent successfully.");
       } else {
-        throw new Error("Gagal mengirim data");
+        throw new Error("Failed to send data.");
       }
     } catch (err: any) {
-      alert("Gagal mengirim deliverable.");
+      alert("Failed to submit deliverable.");
     } finally {
       setSubmittingDeliverable(false);
     }
@@ -247,17 +247,17 @@ export function AllTasksClient({ projects }: { projects: ProjectRef[] }) {
 
       if (res.ok) {
         setBlockerOpen(false);
-        alert("Blocker berhasil dikirim ke Project Manager!");
+        alert("Blocker sent to the Project Manager.");
       }
     } catch (err: any) {
-      alert(err.message || "Gagal mengirim blocker. Silakan coba lagi.");
+      alert(err.message || "Failed to send blocker. Please try again.");
     } finally {
       setSubmittingBlocker(false);
     }
   };
 
   const emptyMessage = useMemo(
-    () => "Belum ada task dari My Projects.",
+    () => "No tasks from My Projects yet.",
     []
   );
 
@@ -336,7 +336,6 @@ export function AllTasksClient({ projects }: { projects: ProjectRef[] }) {
                       className="flex-1 gap-1 text-xs h-8"
                       onClick={() => handleOpenDeliverable(task)}
                     >
-                      <FileText className="size-3" />
                       Submit Deliverables
                     </Button>
                     <Button
@@ -345,7 +344,6 @@ export function AllTasksClient({ projects }: { projects: ProjectRef[] }) {
                       className="flex-1 gap-1 text-xs h-8 text-rose-600 hover:text-rose-700 hover:bg-rose-50"
                       onClick={() => handleOpenBlocker(task)}
                     >
-                      <AlertTriangle className="size-3" />
                       Report Blocker
                     </Button>
                   </div>
@@ -425,7 +423,7 @@ export function AllTasksClient({ projects }: { projects: ProjectRef[] }) {
             <Button
               onClick={handleSubmitDeliverable}
               disabled={submittingDeliverable}
-              className="bg-indigo-600 hover:bg-indigo-700"
+              className="bg-blue-600 hover:bg-blue-700"
             >
               {submittingDeliverable ? "Submitting..." : "Submit"}
             </Button>
@@ -529,7 +527,7 @@ export function AllTasksClient({ projects }: { projects: ProjectRef[] }) {
             <Button
               onClick={handleSubmitBlocker}
               disabled={submittingBlocker || (!blockerTitle.trim() && !blockerDescription.trim())}
-              className="bg-indigo-600 hover:bg-indigo-700"
+              className="bg-blue-600 text-white hover:bg-blue-700"
             >
               {submittingBlocker ? "Sending..." : "Raise a Blocker"}
             </Button>

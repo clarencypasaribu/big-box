@@ -60,5 +60,54 @@ export async function POST(
         return NextResponse.json({ message: error.message }, { status: 500 });
     }
 
+    // Send notifications to task assignee and PM
+    const uploaderName = profile.name || profile.email || "Someone";
+
+    // Get task info for notification
+    const { data: task } = await supabase
+        .from("tasks")
+        .select("title, assignee, project_id, projects(owner_id, name)")
+        .eq("id", taskId)
+        .single();
+
+    if (task) {
+        const notificationRecipients: string[] = [];
+        // @ts-ignore
+        const pmId = task.projects?.owner_id;
+        // @ts-ignore
+        const projectName = task.projects?.name || "Unknown Project";
+
+        // Find assignee profile id
+        if (task.assignee) {
+            const { data: assigneeProfile } = await supabase
+                .from("profiles")
+                .select("id")
+                .or(`full_name.eq.${task.assignee},email.ilike.${task.assignee}%`)
+                .maybeSingle();
+
+            if (assigneeProfile && assigneeProfile.id !== profile.id) {
+                notificationRecipients.push(assigneeProfile.id);
+            }
+        }
+
+        // Add PM if not the uploader
+        if (pmId && pmId !== profile.id && !notificationRecipients.includes(pmId)) {
+            notificationRecipients.push(pmId);
+        }
+
+        // Send notifications
+        const notifications = notificationRecipients.map(userId => ({
+            user_id: userId,
+            title: "New File Uploaded",
+            message: `${uploaderName} uploaded file "${name}" to task "${task.title}" in project "${projectName}"`,
+            type: "FILE_UPLOADED",
+            link: `/member/tasks?taskId=${taskId}`,
+        }));
+
+        if (notifications.length > 0) {
+            await supabase.from("notifications").insert(notifications);
+        }
+    }
+
     return NextResponse.json({ data: file });
 }

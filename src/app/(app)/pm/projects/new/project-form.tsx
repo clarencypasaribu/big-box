@@ -47,13 +47,13 @@ export function ProjectCreateForm() {
 
       if (!res.ok) {
         const body = await res.json().catch(() => ({}));
-        throw new Error(body.message || "Gagal membuat project");
+        throw new Error(body.message || "Failed to create project.");
       }
 
       router.push("/pm/projects");
       router.refresh();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Gagal membuat project");
+      setError(err instanceof Error ? err.message : "Failed to create project.");
     } finally {
       setSaving(false);
     }
@@ -68,7 +68,7 @@ export function ProjectCreateForm() {
         <Input
           id="title"
           name="title"
-          placeholder="Nama proyek"
+          placeholder="Project name"
           className="h-11"
           value={title}
           onChange={(event) => setTitle(event.target.value)}
@@ -83,7 +83,7 @@ export function ProjectCreateForm() {
         <textarea
           id="description"
           name="description"
-          placeholder="Deskripsikan tujuan proyek..."
+          placeholder="Describe the project goals..."
           className="min-h-[120px] w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 shadow-sm outline-none focus:border-indigo-400 focus:ring-4 focus:ring-indigo-100"
           value={description}
           onChange={(event) => setDescription(event.target.value)}

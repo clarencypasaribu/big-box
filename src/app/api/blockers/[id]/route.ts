@@ -66,11 +66,16 @@ export async function PATCH(
                 updates.assignee_name = assigneeName;
                 updates.status = "Assigned"; // Auto update status?
 
+                // Add notes if provided (Assignment instructions)
+                if (body.notes) {
+                    updates.notes = body.notes;
+                }
+
                 // Notify Assignee
                 notificationPromise = supabase.from("notifications").insert({
                     user_id: body.assigneeId,
                     title: "Blocker Assigned",
-                    message: `You have been assigned to blocker "${blocker.title || blocker.reason}" in project "${blocker.project_name}".`,
+                    message: `You have been assigned to blocker "${blocker.title || blocker.reason}" in project "${blocker.project_name}". ${body.notes ? `Note: ${body.notes}` : ""}`,
                     type: "BLOCKER_ASSIGNED",
                     link: `/projects/${blocker.project_id}?blockerId=${id}`,
                 });

@@ -48,7 +48,7 @@ export async function PATCH(
 
     if (!projectId || !stageId || !status) {
       return NextResponse.json(
-        { message: "Project, stage, dan status wajib diisi" },
+        { message: "Project, stage, and status are required." },
         { status: 400 }
       );
     }
@@ -81,8 +81,29 @@ export async function PATCH(
       return NextResponse.json({ message: error.message }, { status: 400 });
     }
 
+    // --- Notification Logic ---
+    if (status === "Approved" && payload.requested_by) {
+      // Notify the requester
+      await supabase.from("notifications").insert({
+        user_id: payload.requested_by,
+        title: "Stage Approval Accepted",
+        message: `Your stage approval request for project has been APPROVED.`,
+        type: "STAGE_APPROVED",
+        link: `/projects/${projectId}?tab=approvals`
+      });
+    } else if (status === "Rejected" && payload.requested_by) {
+      await supabase.from("notifications").insert({
+        user_id: payload.requested_by,
+        title: "Stage Approval Rejected",
+        message: `Your stage approval request for project has been REJECTED.`,
+        type: "STAGE_REJECTED",
+        link: `/projects/${projectId}?tab=approvals`
+      });
+    }
+    // --------------------------
+
     return NextResponse.json({ data });
   } catch (error) {
-    return NextResponse.json({ message: "Gagal memperbarui approval" }, { status: 500 });
+    return NextResponse.json({ message: "Failed to update approval." }, { status: 500 });
   }
 }

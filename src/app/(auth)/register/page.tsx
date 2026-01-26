@@ -11,6 +11,8 @@ import {
   Phone,
   UserRound,
   CheckCircle2,
+  Briefcase,
+  ShieldCheck,
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -52,10 +54,10 @@ export default function RegisterPage() {
 
   function validatePasswords(password: string, confirmPassword: string) {
     if (!password || !confirmPassword) {
-      return "Password dan konfirmasi password wajib diisi.";
+      return "Password and confirmation are required.";
     }
     if (password !== confirmPassword) {
-      return "Password dan konfirmasi tidak sama.";
+      return "Passwords do not match.";
     }
     return null;
   }
@@ -110,32 +112,30 @@ export default function RegisterPage() {
       return;
     }
 
-    // Jika email confirmation aktif, tidak ada session token
-    // Profile akan di-sync saat user pertama kali login setelah confirm email
+
     const token = signUpData.session?.access_token;
     if (token) {
-      // User langsung dapat session (email confirm disabled di Supabase)
+
       const res = await fetch("/api/profile/sync", {
         method: "POST",
         headers: { Authorization: `Bearer ${token}` },
       });
       if (!res.ok) {
         const body = await res.json().catch(() => ({}));
-        setError(body.message || "Gagal menyimpan profil.");
+        setError(body.message || "Failed to save profile.");
         return;
       }
     }
 
     setRoleDialogOpen(false);
 
-    // Cek apakah user perlu confirm email atau sudah bisa langsung login
     if (signUpData.user && !signUpData.session) {
       window.alert(
-        `Registrasi berhasil sebagai ${role === "project_manager" ? "Project Manager" : "Team Member"}.\n\nSilakan cek email Anda untuk konfirmasi, lalu login.`
+        `Registration successful as ${role === "project_manager" ? "Project Manager" : "Team Member"}.\n\nPlease check your email to confirm, then sign in.`
       );
     } else {
       window.alert(
-        `Registrasi berhasil sebagai ${role === "project_manager" ? "Project Manager" : "Team Member"}. Silakan login.`
+        `Registration successful as ${role === "project_manager" ? "Project Manager" : "Team Member"}. You can sign in now.`
       );
     }
     router.push("/login");
@@ -143,196 +143,186 @@ export default function RegisterPage() {
 
   return (
     <>
-      <div className="w-full overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-2xl">
-        <div className="grid gap-0 md:grid-cols-2">
-          <div className="relative hidden items-center justify-center bg-gradient-to-br from-indigo-100 via-white to-indigo-50 md:flex">
-            <div className="absolute inset-6 rounded-3xl bg-white shadow-inner" />
-            <div className="relative flex h-[440px] w-[320px] flex-col items-center justify-center rounded-3xl bg-white shadow-2xl ring-1 ring-slate-200">
-              <div className="flex h-12 w-20 items-center justify-center rounded-full border border-slate-200 bg-white shadow-sm">
-                <LockKeyhole className="size-6 text-[#4b2fdb]" />
-              </div>
-              <div className="mt-6 h-16 w-28 rounded-lg bg-[#4b2fdb]/10" />
-              <div className="mt-8 flex gap-2">
-                <span className="h-2 w-6 rounded-full bg-indigo-400" />
-                <span className="h-2 w-2 rounded-full bg-indigo-200" />
-                <span className="h-2 w-2 rounded-full bg-indigo-200" />
-              </div>
+      <div className="flex min-h-[720px] w-full max-w-6xl overflow-hidden rounded-[32px] bg-white shadow-2xl">
+        {/* Left Side - Brand & Visual */}
+        <div className="relative hidden w-[45%] flex-col justify-between bg-gradient-to-br from-blue-50 via-orange-50 to-red-50 p-10 md:flex">
+          <div className="flex items-center gap-3">
+            <img src="/logo.png" alt="BigBox Logo" className="h-25 w-auto" />
+          </div>
+
+          <div className="mx-auto w-full max-w-sm transform rounded-[32px] bg-white/60 p-8 shadow-xl backdrop-blur-xl transition duration-500 hover:-translate-y-2 hover:shadow-2xl">
+            <div className="mb-6 grid size-12 place-items-center rounded-2xl bg-gradient-to-br from-blue-600 via-orange-500 to-red-500 text-white shadow-lg shadow-blue-500/30">
+              <ShieldCheck className="size-6" />
+            </div>
+            <h2 className="mb-3 text-2xl font-bold leading-tight text-slate-900">
+              Manage your projects with confidence.
+            </h2>
+            <p className="mb-6 text-sm leading-relaxed text-slate-600">
+              Join over 10,000+ professionals who trust BigBox for their daily project management and team collaboration workflow.
+            </p>
+            <div className="flex gap-2">
+              <div className="h-1.5 w-8 rounded-full bg-blue-600" />
+              <div className="h-1.5 w-1.5 rounded-full bg-slate-300" />
+              <div className="h-1.5 w-1.5 rounded-full bg-slate-300" />
             </div>
           </div>
 
-          <div className="flex flex-col gap-6 px-8 py-10 sm:px-12">
-            <div className="flex items-center gap-3">
-              <div className="grid size-10 place-items-center rounded-full bg-indigo-100 text-indigo-700">
-                <LockKeyhole className="size-5" />
-              </div>
-              <p className="text-lg font-semibold text-slate-900">LOGO</p>
-            </div>
+          <p className="text-xs font-semibold text-slate-400">© 2026 BigBox Inc. All rights reserved.</p>
+        </div>
 
+        {/* Right Side - Form */}
+        <div className="flex flex-1 flex-col justify-center overflow-y-auto px-8 py-10 sm:px-12 lg:px-16">
+          <div className="mx-auto w-full max-w-lg space-y-8">
             <div className="space-y-2">
-              <h1 className="text-3xl font-semibold text-slate-900">Register</h1>
-              <p className="text-slate-600">Let’s get you all set up so you can access your personal account.</p>
+              <h1 className="text-4xl font-bold tracking-tight text-slate-900">Register</h1>
+              <p className="text-base text-slate-500">
+                Let’s get you all set up so you can access your personal account.
+              </p>
             </div>
 
-            <form className="space-y-4" onSubmit={handleSubmit}>
-              <div className="grid gap-4 sm:grid-cols-2">
+            <form className="space-y-6" onSubmit={handleSubmit}>
+              <div className="grid gap-5 sm:grid-cols-2">
                 <div className="space-y-2">
-                  <Label htmlFor="firstName">First Name</Label>
+                  <Label htmlFor="firstName" className="text-sm font-medium text-slate-700">First Name</Label>
                   <div className="relative">
-                    <UserRound className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-slate-400" />
-                    <Input id="firstName" name="firstName" placeholder="John" className="pl-10" />
+                    <UserRound className="absolute left-3.5 top-1/2 size-5 -translate-y-1/2 text-slate-400" />
+                    <Input id="firstName" name="firstName" placeholder="John" className="h-12 rounded-xl border-slate-200 pl-11 shadow-sm focus-visible:ring-0 focus-visible:border-blue-600" />
                   </div>
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="lastName">Last Name</Label>
-                  <Input id="lastName" name="lastName" placeholder="Doe" />
+                  <Label htmlFor="lastName" className="text-sm font-medium text-slate-700">Last Name</Label>
+                  <Input id="lastName" name="lastName" placeholder="Doe" className="h-12 rounded-xl border-slate-200 shadow-sm focus-visible:ring-0 focus-visible:border-blue-600" />
                 </div>
-                <div className="space-y-2">
-                  <Label htmlFor="email">Email</Label>
-                  <div className="relative">
-                    <Mail className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-slate-400" />
-                    <Input id="email" name="email" type="email" placeholder="john.doe@gmail.com" className="pl-10" />
-                  </div>
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="phone">Phone Number</Label>
-                  <div className="relative">
-                    <Phone className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-slate-400" />
-                    <Input id="phone" name="phone" type="tel" placeholder="+62..." className="pl-10" />
-                  </div>
-                </div>
-                <div className="space-y-2 sm:col-span-2">
-                  <Label htmlFor="position">Position</Label>
-                  <Input id="position" name="position" placeholder="Web Developer" />
-                </div>
-              </div>
 
-              <div className="grid gap-4 sm:grid-cols-2">
                 <div className="space-y-2">
-                  <Label htmlFor="password">Password</Label>
+                  <Label htmlFor="email" className="text-sm font-medium text-slate-700">Email</Label>
+                  <div className="relative">
+                    <Mail className="absolute left-3.5 top-1/2 size-5 -translate-y-1/2 text-slate-400" />
+                    <Input id="email" name="email" type="email" placeholder="john@example.com" className="h-12 rounded-xl border-slate-200 pl-11 shadow-sm focus-visible:ring-0 focus-visible:border-blue-600" />
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="phone" className="text-sm font-medium text-slate-700">Phone Number</Label>
+                  <div className="relative">
+                    <Phone className="absolute left-3.5 top-1/2 size-5 -translate-y-1/2 text-slate-400" />
+                    <Input id="phone" name="phone" type="tel" placeholder="+62 812 3456 789" className="h-12 rounded-xl border-slate-200 pl-11 shadow-sm focus-visible:ring-0 focus-visible:border-blue-600" />
+                  </div>
+                </div>
+
+                <div className="space-y-2 sm:col-span-2">
+                  <Label htmlFor="position" className="text-sm font-medium text-slate-700">Position</Label>
+                  <div className="relative">
+                    <Briefcase className="absolute left-3.5 top-1/2 size-5 -translate-y-1/2 text-slate-400" />
+                    <Input id="position" name="position" placeholder="e.g. Senior Product Manager" className="h-12 rounded-xl border-slate-200 pl-11 shadow-sm focus-visible:ring-0 focus-visible:border-blue-600" />
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="password" className="text-sm font-medium text-slate-700">Password</Label>
                   <div className="relative">
                     <Input
                       id="password"
                       name="password"
                       type={showPassword ? "text" : "password"}
                       placeholder="••••••••"
-                      className="pr-10"
+                      className="h-12 rounded-xl border-slate-200 pr-11 shadow-sm focus-visible:ring-0 focus-visible:border-blue-600"
                     />
                     <button
                       type="button"
-                      className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500"
+                      className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
                       onClick={() => setShowPassword((prev) => !prev)}
                     >
-                      {showPassword ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
+                      {showPassword ? <EyeOff className="size-5" /> : <Eye className="size-5" />}
                     </button>
                   </div>
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="confirmPassword">Confirm Password</Label>
+                  <Label htmlFor="confirmPassword" className="text-sm font-medium text-slate-700">Confirm Password</Label>
                   <div className="relative">
                     <Input
                       id="confirmPassword"
                       name="confirmPassword"
                       type={showConfirmPassword ? "text" : "password"}
                       placeholder="••••••••"
-                      className="pr-10"
+                      className="h-12 rounded-xl border-slate-200 pr-11 shadow-sm focus-visible:ring-0 focus-visible:border-blue-600"
                     />
                     <button
                       type="button"
-                      className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500"
+                      className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
                       onClick={() => setShowConfirmPassword((prev) => !prev)}
                     >
-                      {showConfirmPassword ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
+                      {showConfirmPassword ? <EyeOff className="size-5" /> : <Eye className="size-5" />}
                     </button>
                   </div>
                 </div>
               </div>
 
-              <div className="flex items-center gap-2 text-sm text-slate-700">
-                <input type="checkbox" required className="size-4 rounded border-slate-300 text-indigo-600" />
-                <span>
+              <div className="flex items-center gap-3">
+                <input type="checkbox" id="terms" required className="size-5 rounded border-slate-300 text-blue-600 focus:ring-blue-600" />
+                <Label htmlFor="terms" className="text-sm text-slate-600 font-normal cursor-pointer">
                   I agree to all the{" "}
-                  <a className="text-rose-500" href="#" onClick={(e) => e.preventDefault()}>
+                  <a className="font-semibold text-blue-600 hover:underline" href="#" onClick={(e) => e.preventDefault()}>
                     Terms
                   </a>{" "}
                   and{" "}
-                  <a className="text-rose-500" href="#" onClick={(e) => e.preventDefault()}>
+                  <a className="font-semibold text-blue-600 hover:underline" href="#" onClick={(e) => e.preventDefault()}>
                     Privacy Policies
-                  </a>
-                </span>
+                  </a>.
+                </Label>
               </div>
 
               <Button
-                className="h-11 w-full bg-[#4255ff] text-white shadow-sm hover:bg-[#3446e6]"
+                className="h-12 w-full rounded-xl bg-gradient-to-r from-blue-600 via-orange-500 to-red-500 text-base font-semibold text-white shadow-lg shadow-blue-500/30 transition-all hover:scale-[1.01] hover:shadow-blue-500/40"
                 type="submit"
                 disabled={loading}
               >
-                {loading ? "Memproses..." : "Create account"}
+                {loading ? "Creating account..." : "Create account"}
               </Button>
-              {error ? <p className="text-sm text-red-600">{error}</p> : null}
+              {error ? <p className="text-center text-sm font-medium text-rose-600 bg-rose-50 p-3 rounded-lg">{error}</p> : null}
             </form>
 
-            <div className="text-center text-sm text-slate-700">
+            <div className="text-center text-sm text-slate-600">
               Already have an account?{" "}
-              <Link href="/login" className="text-rose-500 hover:underline">
+              <Link href="/login" className="font-bold text-blue-600 hover:underline">
                 Login
               </Link>
-            </div>
-
-            <div className="space-y-4 pt-2">
-              <div className="flex items-center gap-3 text-xs text-slate-400">
-                <span className="h-px flex-1 bg-slate-200" />
-                Or Sign up with
-                <span className="h-px flex-1 bg-slate-200" />
-              </div>
-              <div className="grid grid-cols-3 gap-3 text-sm font-semibold text-slate-700">
-                {["Facebook", "Google", "Apple"].map((provider) => (
-                  <button
-                    key={provider}
-                    type="button"
-                    className="rounded-lg border border-slate-200 px-4 py-2 shadow-sm transition hover:bg-slate-50"
-                  >
-                    {provider}
-                  </button>
-                ))}
-              </div>
             </div>
           </div>
         </div>
       </div>
 
       <Dialog open={roleDialogOpen} onOpenChange={setRoleDialogOpen}>
-        <DialogContent showCloseButton={false} className="max-w-lg rounded-3xl bg-white p-8 text-center">
-          <DialogHeader>
-            <DialogTitle className="text-2xl text-slate-900">Choose Your Role</DialogTitle>
-            <DialogDescription className="text-slate-600">
-              Tentukan peran agar kami bisa mengarahkanmu ke dashboard yang tepat.
+        <DialogContent showCloseButton={false} className="max-w-md rounded-[32px] bg-white p-8 text-center">
+          <DialogHeader className="space-y-3">
+            <div className="mx-auto grid size-14 place-items-center rounded-full bg-blue-50 text-blue-600">
+              <UserRound className="size-7" />
+            </div>
+            <DialogTitle className="text-2xl font-bold text-slate-900">Choose Your Role</DialogTitle>
+            <DialogDescription className="text-base text-slate-500">
+              Choose a role so we can guide you to the right dashboard.
             </DialogDescription>
           </DialogHeader>
-          <div className="grid gap-4 sm:grid-cols-2">
+          <div className="mt-6 grid gap-4">
             {[
-              { label: "As Project Manager", value: "project_manager" as const },
-              { label: "As Team Member", value: "team_member" as const },
+              { label: "As Project Manager", value: "project_manager" as const, desc: "Manage projects & teams" },
+              { label: "As Team Member", value: "team_member" as const, desc: "View tasks & collaborate" },
             ].map((option) => (
               <button
                 key={option.value}
                 type="button"
                 disabled={loading}
                 onClick={() => handleChooseRole(option.value)}
-                className="group flex flex-col items-center gap-3 rounded-2xl border border-slate-200 bg-indigo-50 p-5 text-slate-900 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md"
+                className="group relative flex items-center justify-between rounded-2xl border border-slate-200 bg-white p-5 text-left shadow-sm transition-all hover:border-blue-600 hover:shadow-md active:scale-[0.99]"
               >
-                <UserRound className="size-8 text-slate-900" />
-                <span className="rounded-md bg-black px-3 py-2 text-xs font-semibold uppercase text-white">
-                  {option.label}
-                </span>
-                {loading && (
-                  <span className="text-xs text-slate-500">Processing...</span>
-                )}
+                <div>
+                  <span className="block text-base font-bold text-slate-900">{option.label}</span>
+                  <span className="block text-sm text-slate-500">{option.desc}</span>
+                </div>
+                <div className="grid size-8 place-items-center rounded-full border border-slate-200 text-slate-300 transition-colors group-hover:bg-blue-600 group-hover:border-blue-600 group-hover:text-white">
+                  <div className="size-2 rounded-full bg-current" />
+                </div>
               </button>
             ))}
-          </div>
-          <div className="flex items-center justify-center gap-2 text-xs text-slate-500">
-            <CheckCircle2 className="size-4" />
-            <span>Role ini akan disimpan di akunmu.</span>
           </div>
         </DialogContent>
       </Dialog>

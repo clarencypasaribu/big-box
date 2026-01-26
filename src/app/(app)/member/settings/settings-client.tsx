@@ -52,14 +52,14 @@ export function SettingsClient({ initialProfile }: SettingsClientProps) {
     const token = await supabase.auth.getSession().then((res) => res.data.session?.access_token);
     if (!token) {
       setSaving(false);
-      setError("Sesi login tidak ditemukan.");
+      setError("Login session not found.");
       return;
     }
 
     const formEl = formRef.current;
     if (!formEl) {
       setSaving(false);
-      setError("Form tidak ditemukan.");
+      setError("Form not found.");
       return;
     }
 
@@ -87,7 +87,7 @@ export function SettingsClient({ initialProfile }: SettingsClientProps) {
 
         if (!uploadRes.ok) {
           const body = await uploadRes.json().catch(() => ({}));
-          throw new Error(body.message || "Gagal mengunggah avatar.");
+          throw new Error(body.message || "Failed to upload avatar.");
         }
 
         const body = await uploadRes.json();
@@ -109,7 +109,7 @@ export function SettingsClient({ initialProfile }: SettingsClientProps) {
 
       if (!res.ok) {
         const body = await res.json().catch(() => ({}));
-        throw new Error(body.message || "Gagal memperbarui profil.");
+        throw new Error(body.message || "Failed to update profile.");
       }
 
       setProfile((prev) => ({
@@ -123,7 +123,7 @@ export function SettingsClient({ initialProfile }: SettingsClientProps) {
       }));
       setDialogOpen(false);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Gagal memperbarui profil.");
+      setError(err instanceof Error ? err.message : "Failed to update profile.");
     } finally {
       setSaving(false);
     }

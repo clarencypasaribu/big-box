@@ -44,21 +44,9 @@ export default async function MemberSettingsPage() {
     };
   }
 
-  const memberProjects = await getMemberProjects(profile.id);
-
   return (
-    <div className="min-h-screen bg-[#f7f7f9] text-slate-900">
-      <div className="mx-auto flex max-w-screen-2xl gap-6 px-4 py-8 lg:px-8">
-        <MemberSidebar
-          profile={profile}
-          active="settings"
-          taskHref="/member/tasks"
-          projects={memberProjects}
-        />
-        <main className="flex-1">
-          <SettingsClient initialProfile={initialProfile} />
-        </main>
-      </div>
+    <div className="space-y-6">
+      <SettingsClient initialProfile={initialProfile} />
     </div>
   );
 }

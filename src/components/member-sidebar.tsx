@@ -3,14 +3,8 @@
 import Link from "next/link";
 import { useMemo } from "react";
 import { usePathname, useRouter } from "next/navigation";
-import {
-  CheckSquare,
-  MoreHorizontal,
-  Settings,
-  SquareChartGantt,
-} from "lucide-react";
+import { AlertTriangle, Bell, CheckSquare, SquareChartGantt } from "lucide-react";
 
-import { Separator } from "@/components/ui/separator";
 import { SidebarProfile } from "@/components/sidebar-profile";
 import { cn } from "@/lib/utils";
 import type { SidebarProfileData } from "@/utils/current-user";
@@ -21,13 +15,11 @@ export type MemberProjectItem = {
   color: "green" | "blue" | "purple" | "amber";
 };
 
+type activeType = "dashboard" | "task" | "blockers" | "notifications" | "settings" | "project";
+
 type MemberSidebarProps = {
   profile: SidebarProfileData;
-  active: "dashboard" | "task" | "settings" | "project";
-  taskHref: string;
   projects?: MemberProjectItem[];
-  projectHrefBase?: string;
-  activeProjectId?: string | null;
 };
 
 const fallbackProjects: MemberProjectItem[] = [
@@ -36,14 +28,11 @@ const fallbackProjects: MemberProjectItem[] = [
 
 export function MemberSidebar({
   profile,
-  active,
-  taskHref,
   projects = fallbackProjects,
-  projectHrefBase = "/member/project",
-  activeProjectId = null,
 }: MemberSidebarProps) {
   const pathname = usePathname();
   const router = useRouter();
+
   const derivedProjectId = useMemo(() => {
     if (!pathname) return null;
     const match =
@@ -51,70 +40,117 @@ export function MemberSidebar({
       pathname.match(/^\/member\/projects\/([^/]+)/);
     return match?.[1] ?? null;
   }, [pathname]);
-  const resolvedActiveProjectId = activeProjectId ?? derivedProjectId;
+
+  const active: activeType | null = useMemo(() => {
+    if (!pathname) return null;
+    if (pathname.includes("/member/dashboard")) return "dashboard";
+    if (pathname.includes("/member/tasks")) return "task";
+    if (pathname.includes("/member/blockers")) return "blockers";
+    if (pathname.includes("/member/notifications")) return "notifications";
+    if (pathname.includes("/member/settings")) return "settings";
+    if (pathname.includes("/member/project/")) return "project";
+    return null;
+  }, [pathname]);
+
+  const taskHref = "/member/tasks";
+  const projectHrefBase = "/member/project";
+  const resolvedActiveProjectId = derivedProjectId;
 
   return (
-    <aside className="flex min-h-[90vh] w-[230px] flex-col justify-between rounded-xl border border-slate-200 bg-white px-5 py-6">
-      <div className="space-y-6">
-        <div className="flex items-center gap-3">
-          <div className="grid size-10 place-items-center rounded-full bg-[#e8defe] text-[#4d2ba3]">
-            <SquareChartGantt className="size-5" />
-          </div>
-          <div className="space-y-0.5">
-            <p className="text-xs font-medium uppercase tracking-[0.14em] text-[#4d2ba3]">Logo</p>
-            <p className="text-sm font-semibold text-slate-900">Workspace</p>
-          </div>
+    <aside className="sticky top-0 h-screen flex w-80 shrink-0 flex-col justify-between overflow-y-auto border-r border-slate-200 bg-[#0b1220] px-4 py-6 text-slate-300 shadow-lg shadow-black/20">
+      <div className="space-y-8">
+        <div className="flex items-center px-2">
+          <img
+            src="/logo.png"
+            alt="BIGBOX"
+            className="h-28 w-auto max-w-[200px] object-contain"
+          />
         </div>
 
-        <nav className="space-y-1.5 text-sm font-semibold">
+        <nav className="space-y-2 text-sm font-medium">
           <Link
             href="/member/dashboard"
             className={cn(
-              "flex w-full items-center gap-3 rounded-lg px-3 py-2 text-slate-600 hover:bg-slate-100",
-              active === "dashboard" && "bg-[#e8defe] text-[#2f1c70]"
+              "relative flex w-full items-center gap-3 rounded-xl px-4 py-3 transition",
+              active === "dashboard"
+                ? "bg-white/5 text-blue-300 shadow-sm shadow-black/10"
+                : "text-slate-400 hover:bg-white/5 hover:text-white"
             )}
           >
-            <SquareChartGantt className="size-4" />
-            <span className="flex-1 text-left">My Dashboard</span>
+            {active === "dashboard" ? (
+              <span className="absolute left-2 top-1/2 h-6 w-1 -translate-y-1/2 rounded-full bg-blue-500" />
+            ) : null}
+            <SquareChartGantt className="size-5" />
+            <span className="flex-1">My Dashboard</span>
           </Link>
+
           <Link
             href={taskHref}
             className={cn(
-              "flex w-full items-center gap-3 rounded-lg px-3 py-2 text-slate-600 hover:bg-slate-100",
-              active === "task" && "bg-[#e8defe] text-[#2f1c70]"
+              "relative flex w-full items-center gap-3 rounded-xl px-4 py-3 transition",
+              active === "task"
+                ? "bg-white/5 text-blue-300 shadow-sm shadow-black/10"
+                : "text-slate-400 hover:bg-white/5 hover:text-white"
             )}
           >
-            <CheckSquare className="size-4" />
-            <span className="flex-1 text-left">My Task</span>
+            {active === "task" ? (
+              <span className="absolute left-2 top-1/2 h-6 w-1 -translate-y-1/2 rounded-full bg-blue-500" />
+            ) : null}
+            <CheckSquare className="size-5" />
+            <span className="flex-1">My Tasks</span>
           </Link>
+
           <Link
-            href="/member/settings"
+            href="/member/blockers"
             className={cn(
-              "flex w-full items-center gap-3 rounded-lg px-3 py-2 text-slate-600 hover:bg-slate-100",
-              active === "settings" && "bg-[#e8defe] text-[#2f1c70]"
+              "relative flex w-full items-center gap-3 rounded-xl px-4 py-3 transition",
+              active === "blockers"
+                ? "bg-white/5 text-blue-300 shadow-sm shadow-black/10"
+                : "text-slate-400 hover:bg-white/5 hover:text-white"
             )}
           >
-            <Settings className="size-4" />
-            <span className="flex-1 text-left">Settings</span>
+            {active === "blockers" ? (
+              <span className="absolute left-2 top-1/2 h-6 w-1 -translate-y-1/2 rounded-full bg-blue-500" />
+            ) : null}
+            <AlertTriangle className="size-5" />
+            <span className="flex-1">My Blockers</span>
+          </Link>
+
+          <Link
+            href="/member/notifications"
+            className={cn(
+              "relative flex w-full items-center gap-3 rounded-xl px-4 py-3 transition",
+              active === "notifications"
+                ? "bg-white/5 text-blue-300 shadow-sm shadow-black/10"
+                : "text-slate-400 hover:bg-white/5 hover:text-white"
+            )}
+          >
+            {active === "notifications" ? (
+              <span className="absolute left-2 top-1/2 h-6 w-1 -translate-y-1/2 rounded-full bg-blue-500" />
+            ) : null}
+            <Bell className="size-5" />
+            <span className="flex-1">Notifications</span>
           </Link>
         </nav>
 
-        <Separator />
-
-        <div className="space-y-3 text-sm">
-          <p className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">
+        <div className="space-y-4 px-2">
+          <p className="text-[10px] font-semibold uppercase tracking-[0.32em] text-slate-500">
             My Projects
           </p>
-          <div className="space-y-2">
+
+          <div className="space-y-1">
             {projects.map((project) => {
               const href = `${projectHrefBase}/${encodeURIComponent(project.id)}`;
+
               return (
                 <button
                   key={project.id}
                   type="button"
                   className={cn(
-                    "relative z-10 flex w-full items-center gap-3 rounded-lg px-2 py-1 text-left text-slate-700 hover:bg-slate-100",
-                    project.id === resolvedActiveProjectId && "bg-[#e8defe] text-[#2f1c70]"
+                    "relative flex w-full items-center gap-3 rounded-lg px-3 py-2 text-left text-sm transition",
+                    project.id === resolvedActiveProjectId
+                      ? "bg-white/5 text-white"
+                      : "text-slate-400 hover:bg-white/5 hover:text-white"
                   )}
                   onClick={() => {
                     router.push(href);
@@ -123,15 +159,21 @@ export function MemberSidebar({
                 >
                   <span
                     className={cn(
-                      "size-2 rounded-full",
+                      "size-2.5 rounded-full",
                       project.color === "green" && "bg-emerald-500",
                       project.color === "blue" && "bg-blue-500",
                       project.color === "purple" && "bg-purple-500",
                       project.color === "amber" && "bg-amber-500"
                     )}
                   />
-                  <span className="flex-1 text-left text-sm">{project.name}</span>
-                  <MoreHorizontal className="size-4 text-slate-400" />
+
+                  <span className="flex-1 min-w-0 break-words text-left">
+                    {project.name}
+                  </span>
+
+                  {project.id === resolvedActiveProjectId && (
+                    <div className="absolute right-2 top-1/2 size-1.5 -translate-y-1/2 rounded-full bg-blue-500" />
+                  )}
                 </button>
               );
             })}

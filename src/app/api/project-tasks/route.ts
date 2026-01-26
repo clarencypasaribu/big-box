@@ -8,7 +8,7 @@ export async function GET(request: Request) {
     const projectId = searchParams.get("projectId")?.trim();
 
     if (!projectId) {
-      return NextResponse.json({ message: "Project id wajib ada" }, { status: 400 });
+      return NextResponse.json({ message: "Project ID is required." }, { status: 400 });
     }
 
     const supabase = await createSupabaseServiceClient({ allowWrite: true });
@@ -66,7 +66,7 @@ export async function GET(request: Request) {
 
     return NextResponse.json({ data: tasksWithData });
   } catch (error) {
-    return NextResponse.json({ message: "Gagal memuat tasks" }, { status: 500 });
+    return NextResponse.json({ message: "Failed to load tasks." }, { status: 500 });
   }
 }
 
@@ -79,7 +79,7 @@ export async function POST(request: Request) {
 
     if (!projectId || !stageId || !title) {
       return NextResponse.json(
-        { message: "Project, stage, dan title wajib diisi" },
+        { message: "Project, stage, and title are required." },
         { status: 400 }
       );
     }
@@ -143,6 +143,6 @@ export async function POST(request: Request) {
 
     return NextResponse.json({ data });
   } catch (error) {
-    return NextResponse.json({ message: "Gagal menambah task" }, { status: 500 });
+    return NextResponse.json({ message: "Failed to add task." }, { status: 500 });
   }
 }

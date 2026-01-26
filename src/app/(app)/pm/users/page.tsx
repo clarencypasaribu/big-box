@@ -35,12 +35,12 @@ async function loadUsersFromDb(): Promise<{ users: UserRow[]; error?: string | n
           .select("id,full_name,email,role,updated_at")
           .order("full_name", { ascending: true });
         if (fallback.error) {
-          console.error("Gagal memuat profiles:", fallback.error.message);
+          console.error("Failed to load profiles:", fallback.error.message);
           return { users: [], error: fallback.error.message, supportsStatus };
         }
         data = fallback.data ?? [];
       } else {
-        console.error("Gagal memuat profiles:", firstAttempt.error.message);
+        console.error("Failed to load profiles:", firstAttempt.error.message);
         return { users: [], error: firstAttempt.error.message, supportsStatus };
       }
     } else {
@@ -64,66 +64,57 @@ async function loadUsersFromDb(): Promise<{ users: UserRow[]; error?: string | n
 
     return { users, error: null, supportsStatus };
   } catch (err) {
-    const message = err instanceof Error ? err.message : "Gagal memuat profiles";
+    const message = err instanceof Error ? err.message : "Failed to load profiles";
     console.error(message);
     return { users: [], error: message, supportsStatus: false };
   }
 }
 
 export default async function PMUsersPage() {
-  const profile = await getCurrentUserProfile();
   const { users, error, supportsStatus } = await loadUsersFromDb();
   const activeCount = users.filter((user) => user.status === "Active").length;
   const inactiveCount = users.filter((user) => user.status === "Inactive").length;
 
   return (
-    <div className="min-h-screen bg-[#f7f7f9] text-slate-900">
-      <div className="mx-auto flex max-w-screen-2xl gap-6 px-4 py-8 lg:px-8">
-        <PMSidebar currentPath="/pm/users" profile={profile} />
-
-        <main className="flex-1 space-y-6">
-          <div className="space-y-1">
-            <h1 className="text-3xl font-semibold text-slate-900">User</h1>
-          </div>
-
-          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-            <Card className="border-slate-200 shadow-sm">
-              <CardContent className="flex items-center justify-between gap-4 p-5">
-                <div className="space-y-1">
-                  <p className="text-sm text-slate-600">Active</p>
-                  <p className="text-3xl font-semibold text-slate-900">{activeCount}</p>
-                </div>
-                <div className="grid size-12 place-items-center rounded-lg bg-emerald-50 text-emerald-700">
-                  <User className="size-5" />
-                </div>
-              </CardContent>
-            </Card>
-            <Card className="border-slate-200 shadow-sm">
-              <CardContent className="flex items-center justify-between gap-4 p-5">
-                <div className="space-y-1">
-                  <p className="text-sm text-slate-600">Inactive</p>
-                  <p className="text-3xl font-semibold text-slate-900">{inactiveCount}</p>
-                </div>
-                <div className="grid size-12 place-items-center rounded-lg bg-rose-50 text-rose-700">
-                  <ShieldOff className="size-5" />
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-
-          {error ? (
-            <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
-              Gagal memuat user: {error}
-            </div>
-          ) : null}
-
-          <div className="flex flex-col gap-3 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-
-
-            <UsersTableClient initialUsers={users} supportsStatus={supportsStatus} />
-          </div>
-        </main>
+    <main className="space-y-6">
+      <div className="space-y-1">
+        <h1 className="text-3xl font-semibold text-slate-900">User</h1>
       </div>
-    </div>
+
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+        <Card className="border-slate-200 shadow-sm">
+          <CardContent className="flex items-center justify-between gap-4 p-5">
+            <div className="space-y-1">
+              <p className="text-sm text-slate-600">Active</p>
+              <p className="text-3xl font-semibold text-slate-900">{activeCount}</p>
+            </div>
+            <div className="grid size-12 place-items-center rounded-lg bg-emerald-50 text-emerald-700">
+              <User className="size-5" />
+            </div>
+          </CardContent>
+        </Card>
+        <Card className="border-slate-200 shadow-sm">
+          <CardContent className="flex items-center justify-between gap-4 p-5">
+            <div className="space-y-1">
+              <p className="text-sm text-slate-600">Inactive</p>
+              <p className="text-3xl font-semibold text-slate-900">{inactiveCount}</p>
+            </div>
+            <div className="grid size-12 place-items-center rounded-lg bg-rose-50 text-rose-700">
+              <ShieldOff className="size-5" />
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      {error ? (
+        <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+          Failed to load users: {error}
+        </div>
+      ) : null}
+
+      <div className="flex flex-col gap-3 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+        <UsersTableClient initialUsers={users} supportsStatus={supportsStatus} />
+      </div>
+    </main>
   );
 }

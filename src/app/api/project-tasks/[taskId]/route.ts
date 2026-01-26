@@ -11,7 +11,7 @@ export async function PATCH(request: Request, context: RouteContext) {
     const { taskId: rawTaskId } = await context.params;
     const taskId = String(rawTaskId ?? "").trim();
     if (!taskId) {
-      return NextResponse.json({ message: "Task id wajib ada" }, { status: 400 });
+      return NextResponse.json({ message: "Task ID is required." }, { status: 400 });
     }
 
     const body = await request.json();
@@ -35,7 +35,7 @@ export async function PATCH(request: Request, context: RouteContext) {
 
     return NextResponse.json({ data });
   } catch (error) {
-    return NextResponse.json({ message: "Gagal mengubah task" }, { status: 500 });
+    return NextResponse.json({ message: "Failed to update task." }, { status: 500 });
   }
 }
 
@@ -44,7 +44,7 @@ export async function DELETE(_request: Request, context: RouteContext) {
     const { taskId: rawTaskId } = await context.params;
     const taskId = String(rawTaskId ?? "").trim();
     if (!taskId) {
-      return NextResponse.json({ message: "Task id wajib ada" }, { status: 400 });
+      return NextResponse.json({ message: "Task ID is required." }, { status: 400 });
     }
 
     const supabase = await createSupabaseServiceClient({ allowWrite: true });
@@ -56,6 +56,6 @@ export async function DELETE(_request: Request, context: RouteContext) {
 
     return NextResponse.json({ ok: true });
   } catch (error) {
-    return NextResponse.json({ message: "Gagal menghapus task" }, { status: 500 });
+    return NextResponse.json({ message: "Failed to delete task." }, { status: 500 });
   }
 }

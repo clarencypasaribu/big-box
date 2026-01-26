@@ -150,7 +150,7 @@ export function ProjectDetailClient({ projectId }: ProjectDetailClientProps) {
 
   useEffect(() => {
     if (!resolvedId) {
-      setError("ID atau code project kosong.");
+      setError("Project ID or code is missing.");
       setLoading(false);
       return;
     }
@@ -164,7 +164,7 @@ export function ProjectDetailClient({ projectId }: ProjectDetailClientProps) {
       .catch((err) => {
         if (controller.signal.aborted) return;
         setProject(null);
-        setError(err instanceof Error ? err.message : "Project tidak ditemukan");
+        setError(err instanceof Error ? err.message : "Project not found.");
       })
       .finally(() => {
         if (!controller.signal.aborted) {
@@ -192,7 +192,7 @@ export function ProjectDetailClient({ projectId }: ProjectDetailClientProps) {
         <CardContent className="p-6">
           <h1 className="text-2xl font-semibold text-slate-900">Project not found</h1>
           <p className="mt-2 text-slate-600">
-            Data project tidak ditemukan. Pastikan ID atau code proyek benar, lalu coba kembali.
+            Project data was not found. Make sure the ID or code is correct, then try again.
           </p>
           {error ? <p className="mt-3 text-sm text-rose-600">Detail: {error}</p> : null}
         </CardContent>
@@ -463,7 +463,7 @@ export function ProjectDetailClient({ projectId }: ProjectDetailClientProps) {
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
               <h2 className="text-lg font-semibold text-slate-900">Task Team Member per Stage</h2>
-              <p className="text-xs text-slate-500">Tugas yang diajukan anggota tim untuk setiap stage.</p>
+              <p className="text-xs text-slate-500">Tasks submitted by team members for each stage.</p>
             </div>
           </div>
           <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
@@ -474,7 +474,7 @@ export function ProjectDetailClient({ projectId }: ProjectDetailClientProps) {
                   <Badge className="rounded-full bg-slate-100 text-slate-700">{stage.tasks.length} task</Badge>
                 </div>
                 {stage.tasks.length === 0 ? (
-                  <p className="text-xs text-slate-500">Belum ada task dari team member.</p>
+                  <p className="text-xs text-slate-500">No tasks from team members yet.</p>
                 ) : (
                   <div className="space-y-2">
                     {stage.tasks.map((task) => (

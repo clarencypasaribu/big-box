@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Eye, Loader2, MoreHorizontal, Pencil, Plus, Search, Trash2 } from "lucide-react";
+import { Eye, Loader2, MoreHorizontal, Pencil, Plus, Trash2 } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -96,7 +96,13 @@ function formatDate(iso?: string | null) {
   }).format(date);
 }
 
-export function ProjectsClient({ initialProjects }: { initialProjects: ProjectRow[] }) {
+export function ProjectsClient({
+  initialProjects,
+  searchQuery,
+}: {
+  initialProjects: ProjectRow[];
+  searchQuery?: string;
+}) {
   const router = useRouter();
   const normalizeId = (value?: string | null) => {
     const raw = (value ?? "").trim();
@@ -207,7 +213,7 @@ export function ProjectsClient({ initialProjects }: { initialProjects: ProjectRo
       const res = await fetch("/api/projects");
       if (!res.ok) {
         const body = await res.json().catch(() => ({}));
-        throw new Error(body.message || "Gagal mengambil data project");
+        throw new Error(body.message || "Failed to fetch project data.");
       }
       const body = await res.json();
       const rows: ProjectRow[] =
@@ -229,7 +235,7 @@ export function ProjectsClient({ initialProjects }: { initialProjects: ProjectRo
 
       setProjects(rows);
     } catch (error) {
-      setError(error instanceof Error ? error.message : "Gagal mengambil data project");
+      setError(error instanceof Error ? error.message : "Failed to fetch project data.");
     } finally {
       setLoading(false);
     }
@@ -258,7 +264,7 @@ export function ProjectsClient({ initialProjects }: { initialProjects: ProjectRo
   function openEditDialog(project: ProjectRow) {
     const nextId = normalizeId(project.id) || normalizeId(project.code) || null;
     if (!nextId) {
-      setError("Project id wajib ada untuk edit.");
+      setError("Project ID is required to edit.");
       return;
     }
     setEditId(nextId);
@@ -290,7 +296,7 @@ export function ProjectsClient({ initialProjects }: { initialProjects: ProjectRo
   function goToDetail(project: ProjectRow) {
     const slug = normalizeId(project.id) || normalizeId(project.code);
     if (!slug) {
-      setError("Project tidak punya ID atau code untuk dibuka.");
+      setError("Project does not have an ID or code to open.");
       return;
     }
     const encoded = encodeURIComponent(slug);
@@ -311,7 +317,7 @@ export function ProjectsClient({ initialProjects }: { initialProjects: ProjectRo
     };
     if (isEdit && !safeEditId) {
       setSaving(false);
-      setError("Project id wajib ada untuk edit.");
+      setError("Project ID is required to edit.");
       return;
     }
     const endpoint = isEdit ? `/api/projects/${safeEditId}` : "/api/projects";
@@ -326,7 +332,7 @@ export function ProjectsClient({ initialProjects }: { initialProjects: ProjectRo
 
       if (!res.ok) {
         const body = await res.json().catch(() => ({}));
-        throw new Error(body.message || "Gagal menyimpan project");
+        throw new Error(body.message || "Failed to save project.");
       }
 
       const body = await res.json();
@@ -359,7 +365,7 @@ export function ProjectsClient({ initialProjects }: { initialProjects: ProjectRo
 
       setDialogOpen(false);
     } catch (error) {
-      setError(error instanceof Error ? error.message : "Gagal menyimpan project");
+      setError(error instanceof Error ? error.message : "Failed to save project.");
     } finally {
       setSaving(false);
     }
@@ -368,7 +374,7 @@ export function ProjectsClient({ initialProjects }: { initialProjects: ProjectRo
   async function handleDelete(id?: string | null, code?: string | null) {
     const targetId = normalizeId(id) || normalizeId(code);
     if (!targetId) {
-      setError("Project id wajib ada untuk delete.");
+      setError("Project ID is required to delete.");
       return;
     }
     setDeletingId(targetId);
@@ -383,7 +389,7 @@ export function ProjectsClient({ initialProjects }: { initialProjects: ProjectRo
       });
       if (!res.ok) {
         const body = await res.json().catch(() => ({}));
-        throw new Error(body.message || "Gagal menghapus project");
+        throw new Error(body.message || "Failed to delete project.");
       }
       setProjects((prev) =>
         prev.filter(
@@ -392,7 +398,7 @@ export function ProjectsClient({ initialProjects }: { initialProjects: ProjectRo
         )
       );
     } catch (error) {
-      setError(error instanceof Error ? error.message : "Gagal menghapus project");
+      setError(error instanceof Error ? error.message : "Failed to delete project.");
     } finally {
       setDeletingId(null);
     }
@@ -412,7 +418,7 @@ export function ProjectsClient({ initialProjects }: { initialProjects: ProjectRo
     setTeamSearch("");
   }
 
-  const [projectSearch, setProjectSearch] = useState("");
+  const projectSearch = searchQuery ?? "";
 
   const filteredTeam = useMemo(() => {
     const term = teamSearch.trim().toLowerCase();
@@ -436,22 +442,10 @@ export function ProjectsClient({ initialProjects }: { initialProjects: ProjectRo
 
   return (
     <div className="flex flex-col gap-3 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-      <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-        <div className="space-y-1">
-          <p className="text-sm font-semibold text-slate-800">Projects</p>
-          <p className="text-xs text-slate-500">Create, update, or remove project records.</p>
-        </div>
-        <div className="flex flex-1 items-center justify-end gap-3">
-          <div className="relative w-full max-w-xs">
-            <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-slate-400" />
-            <Input
-              value={projectSearch}
-              onChange={(e) => setProjectSearch(e.target.value)}
-              className="h-9 w-full rounded-md border-slate-200 bg-slate-50 pl-10 text-sm focus:bg-white focus:ring-2 focus:ring-indigo-500/20"
-              placeholder="Search projects..."
-            />
+        <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+          <div className="space-y-1">
+            <p className="text-sm font-semibold text-slate-800">Projects</p>
           </div>
-
           <div className="flex items-center gap-2">
             <Button variant="outline" className="gap-2" onClick={fetchProjects} disabled={loading}>
               {loading ? <Loader2 className="size-4 animate-spin" /> : null}
@@ -463,8 +457,6 @@ export function ProjectsClient({ initialProjects }: { initialProjects: ProjectRo
             </Button>
           </div>
         </div>
-      </div>
-
       <Table>
         <TableHeader className="bg-slate-50 text-xs font-semibold uppercase tracking-wide text-slate-500">
           <TableRow className="hover:bg-slate-50">
@@ -559,14 +551,11 @@ export function ProjectsClient({ initialProjects }: { initialProjects: ProjectRo
           ) : (
             <TableRow>
               <TableCell colSpan={7} className="py-6 text-center text-slate-500">
-                {projectSearch ? "Tidak ada project yang cocok dengan pencarian." : "Belum ada project. Tambahkan dari tombol \"Add Project\"."}
+                {projectSearch ? "No projects match your search." : "No projects yet. Add one using the \"Add Project\" button."}
               </TableCell>
             </TableRow>
           )}
         </TableBody>
-        <TableCaption className="text-xs text-slate-500">
-          Data diambil dari tabel <code>projects</code>. Perubahan memerlukan login.
-        </TableCaption>
       </Table>
 
       {error ? <p className="text-sm text-red-600">{error}</p> : null}
@@ -599,7 +588,7 @@ export function ProjectsClient({ initialProjects }: { initialProjects: ProjectRo
                   name="code"
                   value={form.code}
                   onChange={(e) => setForm((prev) => ({ ...prev, code: e.target.value }))}
-                  placeholder="PRJ-001 (kosongkan untuk auto)"
+                  placeholder="PRJ-001 (leave blank for auto)"
                   disabled={isViewMode}
                 />
               </div>
@@ -665,7 +654,7 @@ export function ProjectsClient({ initialProjects }: { initialProjects: ProjectRo
                   onChange={(e) => setForm((prev) => ({ ...prev, lead: e.target.value }))}
                   disabled={isViewMode || leadOptions.length === 0}
                 >
-                  <option value="">{leadOptions.length ? "Pilih Lead" : "Tidak ada Project Manager"}</option>
+                  <option value="">{leadOptions.length ? "Select a lead" : "No project managers available"}</option>
                   {leadOptions.map((member) => (
                     <option key={member} value={member}>
                       {member}
@@ -681,12 +670,12 @@ export function ProjectsClient({ initialProjects }: { initialProjects: ProjectRo
                     name="teamMembersSearch"
                     value={teamSearch}
                     onChange={(e) => setTeamSearch(e.target.value)}
-                    placeholder="Cari anggota..."
+                    placeholder="Search members..."
                     disabled={isViewMode}
                   />
                   <div className="max-h-40 space-y-1 overflow-auto">
                     {filteredTeam.length === 0 ? (
-                      <p className="text-xs text-slate-500">Tidak ada hasil.</p>
+                      <p className="text-xs text-slate-500">No results.</p>
                     ) : (
                       filteredTeam.map((member) => {
                         const checked = form.teamMembers.includes(member);

@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { ArrowRight, BadgeCheck, CheckCircle2, Eye, Loader2, Paperclip, Search, Send, UserRound } from "lucide-react";
+import { ArrowRight, BadgeCheck, CheckCircle2, Eye, Loader2, Paperclip, Send, UserRound } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -29,15 +29,13 @@ export type RiskRow = {
   reportDate: string;
   attachments?: { id: string; name: string; type?: string; size?: string }[];
 };
-
-// Data statis untuk fallback & demo
 const initialRisks: RiskRow[] = [
   {
     id: "blk-092",
     code: "#BLK-2024-092",
-    title: "Koneksi ke CCTV Dishub terputus",
+    title: "CCTV network connection lost",
     description:
-      "Connection time out repeatedly pada port 8080. Stream CCTV Dishub tidak dapat diakses. Perlu analisa network & credential ulang.",
+      "Connection timeouts on port 8080. The CCTV stream is unreachable. Review network access and credentials.",
     project: "Smart City Phase 2",
     product: "Big Vision",
     reporter: "Eliza Talenty",
@@ -49,8 +47,8 @@ const initialRisks: RiskRow[] = [
   {
     id: "blk-093",
     code: "#BLK-2024-093",
-    title: "Latency tinggi di traffic monitor",
-    description: "Spike latency pada API core saat peak traffic > 10k rpm. Perlu profiling dan cache policy review.",
+    title: "High latency in traffic monitor",
+    description: "Latency spikes on the core API during peak traffic > 10k rpm. Needs profiling and cache policy review.",
     project: "Big Vision",
     product: "Traffic Monitor",
     reporter: "Eliza Talenty",
@@ -62,7 +60,7 @@ const initialRisks: RiskRow[] = [
     id: "blk-094",
     code: "#BLK-2024-094",
     title: "Alert false-positive IDS",
-    description: "IDS memicu banyak alert palsu pada subnet internal. False-positive rate > 60%.",
+    description: "IDS triggers many false positives on the internal subnet. False-positive rate > 60%.",
     project: "SOC Platform",
     product: "IDS",
     reporter: "Eliza Talenty",
@@ -99,9 +97,11 @@ export type TeamMember = {
 export function RisksClient({
   initialData = [],
   teamMembers = [],
+  searchQuery = "",
 }: {
   initialData?: RiskRow[];
   teamMembers?: TeamMember[];
+  searchQuery?: string;
 }) {
   const [risks, setRisks] = useState<RiskRow[]>(initialData);
   const [fetching, setFetching] = useState(false);
@@ -167,10 +167,22 @@ export function RisksClient({
     setAssignOpen(true);
   }
 
-  function handleAssign() {
+  async function handleAssign() {
     if (!selectedRisk || !selectedMember) return;
     setAssigning(true);
-    setTimeout(() => {
+
+    try {
+      const res = await fetch(`/api/blockers/${selectedRisk.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ assigneeId: selectedMember, notes: note }),
+      });
+
+      if (!res.ok) {
+        throw new Error("Failed to assign member");
+      }
+
+      // Success
       setRisks((prev) =>
         prev.map((risk) =>
           risk.id === selectedRisk.id
@@ -178,17 +190,20 @@ export function RisksClient({
             : risk
         )
       );
-      setAssigning(false);
+
       setAssignOpen(false);
       setSelectedMember("");
       setNote("");
-    }, 500);
+    } catch (error) {
+      console.error("Assignment failed", error);
+      alert("Failed to assign member. Please try again.");
+    } finally {
+      setAssigning(false);
+    }
   }
 
-  const [searchQuery, setSearchQuery] = useState("");
-
   const filteredRisks = useMemo(() => {
-    const query = searchQuery.toLowerCase();
+    const query = searchQuery.trim().toLowerCase();
     return risks.filter(
       (risk) =>
         risk.title.toLowerCase().includes(query) ||
@@ -200,18 +215,6 @@ export function RisksClient({
 
   return (
     <div className="flex flex-col gap-6">
-      <div className="flex items-center justify-end">
-        <div className="relative w-full max-w-xs">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-slate-400" />
-          <Input
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="Search blocker..."
-            className="h-10 rounded-lg border-slate-200 bg-white pl-10 text-sm ring-offset-white focus-visible:ring-indigo-600"
-          />
-        </div>
-      </div>
-
       <div className="flex flex-col gap-3 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
 
         <div className="space-y-3">
@@ -222,7 +225,7 @@ export function RisksClient({
               </div>
               <h3 className="mt-4 text-sm font-semibold text-slate-900">No Blockers Found</h3>
               <p className="max-w-[17rem] items-center text-sm text-slate-500">
-                {searchQuery ? "Tidak ada blocker yang cocok dengan pencarian." : "Tim project belum melaporkan blocker apapun."}
+                {searchQuery ? "No blockers match your search." : "The project team has not reported any blockers yet."}
               </p>
             </div>
           ) : (
@@ -298,7 +301,7 @@ export function RisksClient({
                     <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Attachments</p>
                     <div className="flex flex-wrap gap-3">
                       {(selectedRisk.attachments ?? []).length === 0 ? (
-                        <p className="text-sm text-slate-500">Tidak ada lampiran.</p>
+                        <p className="text-sm text-slate-500">No attachments.</p>
                       ) : (
                         selectedRisk.attachments?.map((file) => (
                           <Card
@@ -319,7 +322,7 @@ export function RisksClient({
 
                   <div className="flex items-center gap-3 rounded-lg border border-slate-200 bg-white px-3 py-2 shadow-sm">
                     <Send className="size-4 text-indigo-600" />
-                    <p className="text-sm text-slate-700">Tambah komentar atau update untuk tim.</p>
+                    <p className="text-sm text-slate-700">Add a comment or update for the team.</p>
                   </div>
                 </div>
 
@@ -398,7 +401,7 @@ export function RisksClient({
                 <Textarea
                   value={note}
                   onChange={(e) => setNote(e.target.value)}
-                  placeholder="Berikan konteks atau langkah selanjutnya"
+                  placeholder="Add context or next steps"
                   className="min-h-[96px]"
                   maxLength={500}
                 />

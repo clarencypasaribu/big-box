@@ -150,7 +150,7 @@ async function loadApprovalsFromDb(): Promise<{
           if (member) approvers.add(String(member));
         });
 
-        const team = Array.from(approvers.size ? approvers : new Set(["Belum ada approver"]));
+        const team = Array.from(approvers.size ? approvers : new Set(["No approver yet"]));
 
         return {
           id: project.id,
@@ -170,39 +170,28 @@ async function loadApprovalsFromDb(): Promise<{
   } catch (error) {
     return {
       approvals: [],
-      error: error instanceof Error ? error.message : "Gagal memuat approvals",
+      error: error instanceof Error ? error.message : "Failed to load approvals.",
     };
   }
 }
 
 export default async function PMApprovalsPage() {
-  const profile = await getCurrentUserProfile();
   const { approvals, error } = await loadApprovalsFromDb();
 
   return (
-    <div className="min-h-screen bg-[#f7f7f9] text-slate-900">
-      <div className="mx-auto flex max-w-screen-2xl gap-6 px-4 py-8 lg:px-8">
-        <PMSidebar currentPath="/pm/approvals" profile={profile} />
-
-        <main className="flex-1 space-y-6">
-          <div className="space-y-1">
-            <h1 className="text-3xl font-semibold text-slate-900">State Gate Overview</h1>
-            <p className="text-slate-600">Pantau approval readiness, pending tasks, dan velocity.</p>
-          </div>
-
-
-
-
-
-          {error ? (
-            <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
-              Gagal memuat approvals: {error}
-            </div>
-          ) : null}
-
-          <ApprovalsClient rows={approvals} />
-        </main>
+    <main className="space-y-6">
+      <div className="space-y-1">
+        <h1 className="text-3xl font-semibold text-slate-900">State Gate Overview</h1>
+        <p className="text-slate-600">Track approval readiness, pending tasks, and velocity.</p>
       </div>
-    </div>
+
+      {error ? (
+        <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+          Failed to load approvals: {error}
+        </div>
+      ) : null}
+
+      <ApprovalsClient rows={approvals} />
+    </main>
   );
 }

@@ -1,25 +1,15 @@
-import { AlertTriangle, Bell, Filter, LayoutDashboard, Search, ShieldAlert } from "lucide-react";
-
-import { PMSidebar } from "@/app/(app)/pm/_components/sidebar";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import { RisksClient } from "@/app/(app)/pm/risks/risks-client";
+import { RisksDashboardClient } from "@/app/(app)/pm/risks/risks-dashboard-client";
 import { getCurrentUserProfile } from "@/utils/current-user";
 
 import { createSupabaseServiceClient } from "@/utils/supabase-service";
 
-type RiskStat = {
-  label: string;
-  value: number;
-  trend: string;
-  trendColor: string;
-  icon: React.ElementType;
-  accent: string;
-  accentIcon: string;
+type RiskCounts = {
+  active: number;
+  critical: number;
+  resolved: number;
 };
 
-async function loadRiskStats() {
+async function loadRiskStats(): Promise<RiskCounts> {
   const supabase = await createSupabaseServiceClient();
 
   const { data: blockers } = await supabase
@@ -45,35 +35,11 @@ async function loadRiskStats() {
   // Calculate trends (mock logic for "today" vs "yesterday" as we only have current snapshot, 
   // but for resolved we know exact count today)
 
-  return [
-    {
-      label: "Total Active Blocker",
-      value: activeBlockers.length,
-      trend: `${activeBlockers.length} active`,
-      trendColor: "text-rose-600",
-      icon: ShieldAlert,
-      accent: "bg-rose-50 text-rose-600",
-      accentIcon: "text-rose-600",
-    },
-    {
-      label: "Critical Risks",
-      value: criticalBlockers.length,
-      trend: `${criticalBlockers.length} > 3 days`,
-      trendColor: "text-amber-600",
-      icon: AlertTriangle,
-      accent: "bg-amber-50 text-amber-600",
-      accentIcon: "text-amber-600",
-    },
-    {
-      label: "Resolved Today",
-      value: resolvedToday.length,
-      trend: `+${resolvedToday.length} closed`,
-      trendColor: "text-emerald-600",
-      icon: LayoutDashboard,
-      accent: "bg-emerald-50 text-emerald-600",
-      accentIcon: "text-emerald-600",
-    },
-  ];
+  return {
+    active: activeBlockers.length,
+    critical: criticalBlockers.length,
+    resolved: resolvedToday.length,
+  };
 }
 
 async function loadBlockers(pmId: string) {
@@ -142,43 +108,8 @@ export default async function PMRisksPage() {
   const teamMembers = await loadTeamMembers();
 
   return (
-    <div className="min-h-screen bg-[#f7f7f9] text-slate-900">
-      <div className="mx-auto flex max-w-screen-2xl gap-6 px-4 py-8 lg:px-8">
-        <PMSidebar currentPath="/pm/risks" profile={profile} />
-
-        <main className="flex-1 space-y-6">
-          <div className="flex flex-col gap-6 sm:flex-row sm:items-end sm:justify-between">
-            <div className="space-y-1.5">
-              <h1 className="text-3xl font-bold tracking-tight text-slate-900">Risk & Blocker Highlight</h1>
-              <p className="text-base text-slate-500">
-                Monitor laporan blocker, mitigasi risiko critical, dan assign team member.
-              </p>
-            </div>
-
-          </div>
-
-          <div className="grid gap-4 md:grid-cols-3">
-            {stats.map((stat) => (
-              <Card key={stat.label} className="rounded-xl border-slate-200 transition-all hover:shadow-md">
-                <CardContent className="flex items-center justify-between gap-4 p-5">
-                  <div className="space-y-1">
-                    <p className="text-sm font-medium text-slate-500">{stat.label}</p>
-                    <div className="flex items-baseline gap-2">
-                      <p className="text-3xl font-bold text-slate-900">{stat.value}</p>
-                      <span className={`text-xs font-semibold ${stat.trendColor}`}>{stat.trend}</span>
-                    </div>
-                  </div>
-                  <div className={`grid size-12 place-items-center rounded-xl bg-opacity-50 ${stat.accent}`}>
-                    <stat.icon className="size-6" />
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
-
-          <RisksClient initialData={blockers as any} teamMembers={teamMembers} />
-        </main>
-      </div>
-    </div>
+    <main className="space-y-6">
+      <RisksDashboardClient counts={stats} blockers={blockers as any} teamMembers={teamMembers} />
+    </main>
   );
 }

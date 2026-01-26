@@ -41,29 +41,18 @@ export default async function MemberProjectPage({ params }: ProjectPageProps) {
   }
 
   return (
-    <div className="min-h-screen bg-[#f7f7f9] text-slate-900">
-      <div className="mx-auto flex max-w-screen-2xl gap-6 px-4 py-8 lg:px-8">
-        <MemberSidebar
-          profile={profile}
-          active="project"
-          taskHref="/member/tasks"
-          projects={memberProjects}
-          activeProjectId={(requestedId || project?.id) ?? null}
+    <div className="h-full">
+      {project ? (
+        <ProjectBoardClient
+          key={project.id}
+          projectName={project.name}
+          projectId={project.id}
         />
-        <main className="flex-1">
-          {project ? (
-            <ProjectBoardClient
-              key={project.id}
-              projectName={project.name}
-              projectId={project.id}
-            />
-          ) : (
-            <div className="rounded-2xl border border-slate-200 bg-white p-6 text-sm text-slate-500">
-              Belum ada project yang di-assign. Minta PM menambahkan kamu ke project.
-            </div>
-          )}
-        </main>
-      </div>
+      ) : (
+        <div className="rounded-2xl border border-slate-200 bg-white p-6 text-sm text-slate-500">
+          No assigned projects yet. Ask your PM to add you to a project.
+        </div>
+      )}
     </div>
   );
 }

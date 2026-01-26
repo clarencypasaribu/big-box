@@ -1,5 +1,4 @@
 import {
-  Activity,
   AlertOctagon,
   AlertTriangle,
   ArrowUpRight,
@@ -78,14 +77,13 @@ function timeAgo(dateStr?: string) {
 
 async function loadDashboardStats(): Promise<{
   chartData: ChartData[];
-  portfolioHealth: number;
   notifications: Notification[];
 }> {
   const hasSupabaseEnv =
     process.env.NEXT_PUBLIC_SUPABASE_URL &&
     (process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY);
 
-  if (!hasSupabaseEnv) return { chartData: [], portfolioHealth: 0, notifications: [] };
+  if (!hasSupabaseEnv) return { chartData: [], notifications: [] };
 
   try {
     const supabase = await createSupabaseServiceClient();
@@ -158,15 +156,8 @@ async function loadDashboardStats(): Promise<{
       value: stageCounts[def.code] ?? 0,
     }));
 
-    // 2. Portfolio Health
-    const totalProjects = projects?.length ?? 0;
-    const totalProgress = (projects ?? []).reduce((acc, p) => acc + (p.progress ?? 0), 0);
-    const portfolioHealth = totalProjects > 0 ? Math.round(totalProgress / totalProjects) : 0;
-
-    // 3. Notifications
     const notifications: Notification[] = [];
 
-    // Add Blockers to Notifications
     (blockers ?? []).forEach((blocker) => {
       const reporter = blocker.reporter_name || "A team member";
       notifications.push({
@@ -178,9 +169,7 @@ async function loadDashboardStats(): Promise<{
       });
     });
 
-    // Add Pending Approvals to Notifications
     (approvals ?? []).filter(a => a.status === "Pending" || a.status === "In Review").forEach((approval) => {
-      // Find project name
       const proj = projects?.find(p => p.id === approval.project_id);
       const stageCode = stageDefinitions.find(s => s.id === normalizeStageId(approval.stage_id))?.code ?? "Stage";
       const requesterName = approval.requested_by ? userMap[approval.requested_by] : "A member";
@@ -194,7 +183,6 @@ async function loadDashboardStats(): Promise<{
       });
     });
 
-    // Add New Projects to Notifications
     (projects ?? []).forEach(proj => {
       notifications.push({
         title: "New Project",
@@ -205,13 +193,11 @@ async function loadDashboardStats(): Promise<{
       });
     });
 
-    // Add Task Notifications
     const now = new Date();
     (tasks ?? []).forEach((task) => {
       const createdAt = new Date(task.created_at);
       const proj = projects?.find(p => p.id === task.project_id);
 
-      // New Task Created (within last 7 days)
       if (now.getTime() - createdAt.getTime() < 7 * 24 * 60 * 60 * 1000) {
         notifications.push({
           title: "New Task Added",
@@ -222,12 +208,10 @@ async function loadDashboardStats(): Promise<{
         });
       }
 
-      // Deadline Approaching
       if (task.due_date) {
         const dueDate = new Date(task.due_date);
         const diffHours = (dueDate.getTime() - now.getTime()) / (1000 * 60 * 60);
 
-        // If due within next 3 days 
         if (diffHours > -24 && diffHours < 72) {
           notifications.push({
             title: "Deadline Approaching",
@@ -240,21 +224,20 @@ async function loadDashboardStats(): Promise<{
       }
     });
 
-    // Sort by time desc and take top 10
     const sortedNotifications = notifications
       .sort((a, b) => (b.timestamp ?? 0) - (a.timestamp ?? 0))
       .slice(0, 10);
 
-    return { chartData, portfolioHealth, notifications: sortedNotifications };
+    return { chartData, notifications: sortedNotifications };
   } catch (error) {
     console.error("Failed to load dashboard data:", error);
-    return { chartData: [], portfolioHealth: 0, notifications: [] };
+    return { chartData: [], notifications: [] };
   }
 }
 
 export default async function PMDashboardPage() {
   const profile = await getCurrentUserProfile();
-  const { chartData, portfolioHealth, notifications } = await loadDashboardStats();
+  const { chartData, notifications } = await loadDashboardStats();
 
   let blockerCount = 0;
   if (profile.id) {
@@ -271,151 +254,123 @@ export default async function PMDashboardPage() {
   }
 
   return (
-    <div className="min-h-screen bg-[#f7f7f9] text-slate-900">
-      <div className="mx-auto flex max-w-screen-2xl gap-6 px-4 py-8 lg:px-8">
-        <PMSidebar currentPath="/pm/dashboard" profile={profile} />
+    <main className="space-y-6">
+      <header className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+        <h1 className="text-4xl font-semibold text-slate-900">
+          Project Control Tower
+        </h1>
+        <div className="relative w-full max-w-xs lg:max-w-sm">
+          <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-slate-400" />
+          <Input
+            className="h-11 rounded-md border-slate-200 bg-slate-100/60 pl-10 text-sm"
+            placeholder="Search for anything..."
+            type="search"
+          />
+        </div>
+      </header>
 
-        <main className="flex-1 space-y-6">
-          <header className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-            <h1 className="text-4xl font-semibold text-slate-900">
-              Project Control Tower
-            </h1>
-            <div className="relative w-full max-w-xs lg:max-w-sm">
-              <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-slate-400" />
-              <Input
-                className="h-11 rounded-md border-slate-200 bg-slate-100/60 pl-10 text-sm"
-                placeholder="Search for anything..."
-                type="search"
-              />
-            </div>
-          </header>
+      <div className="grid gap-5 xl:grid-cols-[2fr,1fr]">
+        <ProjectDistributionChart data={chartData} />
 
-          <div className="grid gap-5 xl:grid-cols-[2fr,1fr]">
-            <ProjectDistributionChart data={chartData} />
-
-            <div className="space-y-4">
-              <Card className="border-slate-200 shadow-sm">
-                <CardContent className="flex items-center gap-4 p-5">
-                  <div className="grid size-12 place-items-center rounded-md bg-rose-50 text-rose-500">
-                    <AlertTriangle className="size-5" />
-                  </div>
-                  <div className="flex-1 space-y-1">
-                    <p className="text-sm font-semibold text-slate-900">
-                      Attention Needed
-                    </p>
-                    <p className="text-sm text-slate-600">
-                      Projects are currently blocked or at high risk
-                    </p>
-                  </div>
-                  <div className="text-center">
-                    <p className="text-4xl font-semibold text-rose-600">{blockerCount}</p>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="mt-2 border-slate-200 text-slate-700"
-                      asChild
-                    >
-                      <Link href="/pm/risks">
-                        View Blocker Details
-                        <ArrowUpRight className="size-4" />
-                      </Link>
-                    </Button>
-                  </div>
-                </CardContent>
-              </Card>
-
-              <Card className="border-slate-200 shadow-sm">
-                <CardContent className="flex items-center gap-4 p-5">
-                  <div className="grid size-12 place-items-center rounded-md bg-emerald-50 text-emerald-600">
-                    <Activity className="size-5" />
-                  </div>
-                  <div className="flex-1 space-y-1">
-                    <p className="text-sm font-semibold text-slate-900">
-                      Portfolio Health
-                    </p>
-                    <p className="text-sm text-slate-600">
-                      Overall portfolio health score.
-                    </p>
-                  </div>
-                  <div className="text-right">
-                    <Badge className="mb-1 bg-emerald-50 text-emerald-700">
-                      Calculated
-                    </Badge>
-                    <p className="text-4xl font-semibold text-slate-900">{portfolioHealth}%</p>
-                  </div>
-                </CardContent>
-              </Card>
-            </div>
-          </div>
-
+        <div className="space-y-4">
           <Card className="border-slate-200 shadow-sm">
-            <CardHeader className="flex flex-row items-center justify-between">
-              <CardTitle className="text-xl">Notifications</CardTitle>
-              <Badge variant="outline" className="bg-slate-50 text-slate-700">
-                Recent
-              </Badge>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              <Separator className="border-dashed" />
-              <div className="space-y-3">
-                {notifications.length === 0 ? (
-                  <div className="py-4 text-center text-sm text-slate-500">No new notifications.</div>
-                ) : (
-                  notifications.map((note, idx) => {
-                    const toneStyles: Record<
-                      Notification["tone"],
-                      { bg: string; text: string; icon: React.ElementType }
-                    > = {
-                      info: {
-                        bg: "bg-emerald-50",
-                        text: "text-emerald-600",
-                        icon: CheckCircle2,
-                      },
-                      warning: {
-                        bg: "bg-amber-50",
-                        text: "text-amber-600",
-                        icon: Clock3,
-                      },
-                      critical: {
-                        bg: "bg-rose-50",
-                        text: "text-rose-600",
-                        icon: AlertOctagon,
-                      },
-                    };
-                    const Icon = toneStyles[note.tone].icon;
-
-                    return (
-                      <div
-                        key={`${note.title}-${idx}`}
-                        className="flex items-start gap-4 rounded-xl border border-slate-200 bg-white px-4 py-3 shadow-sm"
-                      >
-                        <div
-                          className={cn(
-                            "grid size-10 place-items-center rounded-full",
-                            toneStyles[note.tone].bg,
-                            toneStyles[note.tone].text
-                          )}
-                        >
-                          <Icon className="size-4" />
-                        </div>
-                        <div className="flex-1 space-y-1">
-                          <p className="text-sm font-semibold text-slate-900">
-                            {note.title}
-                          </p>
-                          <p className="text-sm text-slate-600">{note.message}</p>
-                        </div>
-                        <span className="text-xs font-semibold text-slate-500">
-                          {note.time}
-                        </span>
-                      </div>
-                    );
-                  })
-                )}
+            <CardContent className="flex items-center gap-4 p-5">
+              <div className="grid size-12 place-items-center rounded-md bg-rose-50 text-rose-500">
+                <AlertTriangle className="size-5" />
+              </div>
+              <div className="flex-1 space-y-1">
+                <p className="text-sm font-semibold text-slate-900">
+                  Attention Needed
+                </p>
+                <p className="text-sm text-slate-600">
+                  Projects are currently blocked or at high risk
+                </p>
+              </div>
+              <div className="text-center">
+                <p className="text-4xl font-semibold text-rose-600">{blockerCount}</p>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="mt-2 border-slate-200 text-slate-700"
+                  asChild
+                >
+                  <Link href="/pm/risks">
+                    View Blocker Details
+                    <ArrowUpRight className="size-4" />
+                  </Link>
+                </Button>
               </div>
             </CardContent>
           </Card>
-        </main>
+        </div>
       </div>
-    </div>
+
+      <Card className="border-slate-200 shadow-sm">
+        <CardHeader className="flex flex-row items-center justify-between">
+          <CardTitle className="text-xl">Notifications</CardTitle>
+          <Badge variant="outline" className="bg-slate-50 text-slate-700">
+            Recent
+          </Badge>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <Separator className="border-dashed" />
+          <div className="space-y-3">
+            {notifications.length === 0 ? (
+              <div className="py-4 text-center text-sm text-slate-500">No new notifications.</div>
+            ) : (
+              notifications.map((note, idx) => {
+                const toneStyles: Record<
+                  Notification["tone"],
+                  { bg: string; text: string; icon: React.ElementType }
+                > = {
+                  info: {
+                    bg: "bg-emerald-50",
+                    text: "text-emerald-600",
+                    icon: CheckCircle2,
+                  },
+                  warning: {
+                    bg: "bg-amber-50",
+                    text: "text-amber-600",
+                    icon: Clock3,
+                  },
+                  critical: {
+                    bg: "bg-rose-50",
+                    text: "text-rose-600",
+                    icon: AlertOctagon,
+                  },
+                };
+                const Icon = toneStyles[note.tone].icon;
+
+                return (
+                  <div
+                    key={`${note.title}-${idx}`}
+                    className="flex items-start gap-4 rounded-xl border border-slate-200 bg-white px-4 py-3 shadow-sm"
+                  >
+                    <div
+                      className={cn(
+                        "grid size-10 place-items-center rounded-full",
+                        toneStyles[note.tone].bg,
+                        toneStyles[note.tone].text
+                      )}
+                    >
+                      <Icon className="size-4" />
+                    </div>
+                    <div className="flex-1 space-y-1">
+                      <p className="text-sm font-semibold text-slate-900">
+                        {note.title}
+                      </p>
+                      <p className="text-sm text-slate-600">{note.message}</p>
+                    </div>
+                    <span className="text-xs font-semibold text-slate-500">
+                      {note.time}
+                    </span>
+                  </div>
+                );
+              })
+            )}
+          </div>
+        </CardContent>
+      </Card>
+    </main>
   );
 }

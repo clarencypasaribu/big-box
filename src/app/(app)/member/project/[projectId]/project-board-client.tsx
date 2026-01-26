@@ -346,10 +346,10 @@ export function ProjectBoardClient({
       setCommentsList([]);
       const encodedId = encodeURIComponent(activeTaskId);
       fetch(`/api/project-tasks/${encodedId}/comments`)
-        .then((res) => res.json().catch(() => ({ data: [], message: "Gagal parse response" })))
+        .then((res) => res.json().catch(() => ({ data: [], message: "Failed to parse response" })))
         .then((body) => {
           if (body?.message) {
-            console.warn("Komentar task tidak bisa dimuat:", body.message);
+            console.warn("Task comments could not be loaded:", body.message);
           }
           if (body?.data && Array.isArray(body.data)) {
             setCommentsList(
@@ -394,12 +394,6 @@ export function ProjectBoardClient({
         <div className="space-y-3">
           <div className="flex items-center gap-3">
             <h1 className="text-3xl font-semibold text-slate-900">{title}</h1>
-            <Button variant="ghost" size="icon" className="h-8 w-8 rounded-full bg-white">
-              <Plus className="size-4" />
-            </Button>
-            <Button variant="ghost" size="icon" className="h-8 w-8 rounded-full bg-white">
-              <LinkIcon className="size-4" />
-            </Button>
           </div>
           <div className="flex flex-wrap items-center gap-3 text-sm text-slate-500">
             <div className="relative w-[280px]">
@@ -437,35 +431,6 @@ export function ProjectBoardClient({
             </DropdownMenu>
           </div>
         </div>
-
-        <div className="flex items-center gap-3">
-          <Button variant="outline" className="h-10 gap-2">
-            <Users className="size-4" />
-            Invite
-          </Button>
-          <div className="flex -space-x-2">
-            {avatarStack.map((tone, idx) => (
-              <div
-                key={tone}
-                className={cn(
-                  "flex h-8 w-8 items-center justify-center rounded-full border-2 border-white text-xs font-semibold text-slate-700",
-                  tone
-                )}
-              >
-                {String.fromCharCode(65 + idx)}
-              </div>
-            ))}
-            <div className="flex h-8 w-8 items-center justify-center rounded-full border-2 border-white bg-rose-100 text-xs font-semibold text-rose-600">
-              +2
-            </div>
-          </div>
-          <Button variant="outline" className="h-10">
-            + New Task
-          </Button>
-          <Button className="h-10 w-10 bg-indigo-600 text-white hover:bg-indigo-700">
-            <LayoutGrid className="size-4" />
-          </Button>
-        </div>
       </header>
 
       {!columns || loadingTasks ? (
@@ -480,7 +445,7 @@ export function ProjectBoardClient({
         <div className="space-y-4">
           {!hasAnyTasks ? (
             <div className="rounded-2xl border border-dashed border-slate-200 bg-white p-5 text-sm text-slate-500">
-              Belum ada task di project ini. Tambahkan task di setiap stage.
+              No tasks in this project yet. Add tasks to each stage.
             </div>
           ) : null}
           <div className="grid gap-4 lg:grid-cols-3">
@@ -500,7 +465,7 @@ export function ProjectBoardClient({
                   const approvalStatus = stageApprovals[column.id] ?? "Not Submitted";
                   const approvalLabel =
                     approvalStatus === "Pending"
-                      ? "Menunggu Approval"
+                      ? "Awaiting Approval"
                       : approvalStatus === "Approved"
                         ? "Approved"
                         : "Kirim Approval";
@@ -590,12 +555,12 @@ export function ProjectBoardClient({
                                 });
                                 if (!res.ok) {
                                   const body = await res.json().catch(() => ({}));
-                                  alert(body.message || "Gagal mengirim approval.");
+                                  alert(body.message || "Failed to submit approval.");
                                   return;
                                 }
                                 await refreshProjectData();
                               } catch (err) {
-                                alert("Terjadi kesalahan saat mengirim approval.");
+                                alert("An error occurred while submitting the approval.");
                               }
                             }}
                           >
@@ -604,7 +569,7 @@ export function ProjectBoardClient({
                           {isLocked ? (
                             <div className="flex items-center gap-1 text-xs text-slate-400">
                               <Lock className="size-3" />
-                              Menunggu approval stage sebelumnya
+                              Waiting for the previous stage approval
                             </div>
                           ) : null}
                         </div>
@@ -755,7 +720,7 @@ export function ProjectBoardClient({
                                   onSelect={(event) => {
                                     event.stopPropagation();
                                     ignoreNextNavRef.current = true;
-                                    if (!window.confirm("Yakin menghapus task ini?")) return;
+                                    if (!window.confirm("Are you sure you want to delete this task?")) return;
                                     if (!card.taskId) return;
                                     fetch(`/api/project-tasks/${card.taskId}`, {
                                       method: "DELETE",
@@ -844,7 +809,8 @@ export function ProjectBoardClient({
             ))}
           </div>
         </div>
-      )}
+      )
+      }
 
       <Dialog open={commentsOpen} onOpenChange={setCommentsOpen}>
         <DialogContent className="max-w-lg rounded-2xl">
@@ -903,11 +869,11 @@ export function ProjectBoardClient({
                         setNewComment("");
                       } else {
                         console.error("Failed to submit comment:", body);
-                        alert(body.message || "Gagal mengirim komentar");
+                        alert(body.message || "Failed to send comment");
                       }
                     } catch (err) {
                       console.error("Error submitting comment:", err);
-                      alert("Terjadi kesalahan sistem saat mengirim komentar");
+                      alert("A system error occurred while sending the comment");
                     } finally {
                       setIsUploading(false);
                     }
@@ -1266,6 +1232,6 @@ export function ProjectBoardClient({
           </form>
         </DialogContent>
       </Dialog>
-    </div>
+    </div >
   );
 }

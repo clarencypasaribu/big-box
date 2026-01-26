@@ -77,7 +77,7 @@ async function syncProjectMembers(
       title: "Added to Project",
       message: `You have been added to project "${projectName}".`,
       type: "PROJECT_ASSIGNED",
-      link: `/projects/${projectId}`,
+      link: `/member/project/${projectId}`,
     }));
     await supabase.from("notifications").insert(notifications);
   }
@@ -104,7 +104,7 @@ export async function GET(request: NextRequest, context: { params: Promise<{ id:
     const queryId = url.searchParams.get("id") ?? url.searchParams.get("code") ?? "";
     const targetId = normalizeId(rawParam) || normalizeId(queryId);
     if (!targetId) {
-      return NextResponse.json({ message: "Project id wajib ada" }, { status: 400 });
+      return NextResponse.json({ message: "Project ID is required." }, { status: 400 });
     }
 
     const supabase = await createSupabaseServiceClient({ allowWrite: true });
@@ -126,7 +126,7 @@ export async function GET(request: NextRequest, context: { params: Promise<{ id:
 
     return NextResponse.json({ data });
   } catch (error) {
-    return NextResponse.json({ message: "Gagal memuat project" }, { status: 500 });
+    return NextResponse.json({ message: "Failed to load project." }, { status: 500 });
   }
 }
 
@@ -144,7 +144,7 @@ export async function PUT(request: NextRequest, context: { params: Promise<{ id:
     const fallbackCode = typeof body.code === "string" ? body.code : "";
     const targetId = normalizeId(rawParam) || normalizeId(fallbackId) || normalizeId(fallbackCode);
     if (!targetId) {
-      return NextResponse.json({ message: "Project id wajib ada" }, { status: 400 });
+      return NextResponse.json({ message: "Project ID is required." }, { status: 400 });
     }
 
     const payload = {
@@ -164,7 +164,7 @@ export async function PUT(request: NextRequest, context: { params: Promise<{ id:
     };
 
     if (!payload.name) {
-      return NextResponse.json({ message: "Nama project wajib diisi" }, { status: 400 });
+      return NextResponse.json({ message: "Project name is required." }, { status: 400 });
     }
 
     const supabase = await createSupabaseServiceClient({ allowWrite: true });
@@ -194,7 +194,7 @@ export async function PUT(request: NextRequest, context: { params: Promise<{ id:
 
     return NextResponse.json({ data });
   } catch (error) {
-    return NextResponse.json({ message: "Gagal mengubah project" }, { status: 500 });
+    return NextResponse.json({ message: "Failed to update project." }, { status: 500 });
   }
 }
 
@@ -220,14 +220,83 @@ export async function DELETE(request: NextRequest, context: { params: Promise<{ 
     }
     const targetId = normalizeId(rawParam) || normalizeId(queryId) || bodyId;
     if (!targetId) {
-      return NextResponse.json({ message: "Project id wajib ada" }, { status: 400 });
+      return NextResponse.json({ message: "Project ID is required." }, { status: 400 });
     }
 
     const supabase = await createSupabaseServiceClient({ allowWrite: true });
+
+    // First, get the project to find its ID (in case targetId is a code)
+    const { data: project } = await supabase
+      .from("projects")
+      .select("id")
+      .or(`id.eq.${targetId},code.eq.${targetId}`)
+      .maybeSingle();
+
+    if (!project) {
+      return NextResponse.json({ message: "Project tidak ditemukan" }, { status: 404 });
+    }
+
+    const projectId = project.id;
+
+    // Delete related records first to avoid foreign key constraint violations
+    // 1. Delete project_members
+    await supabase
+      .from("project_members")
+      .delete()
+      .eq("project_id", projectId);
+
+    // 2. Delete project_stage_approvals
+    await supabase
+      .from("project_stage_approvals")
+      .delete()
+      .eq("project_id", projectId);
+
+    // 3. Delete blockers related to this project
+    await supabase
+      .from("blockers")
+      .delete()
+      .eq("project_id", projectId);
+
+    // 4. Get all tasks for this project to delete related records
+    const { data: tasks } = await supabase
+      .from("tasks")
+      .select("id")
+      .eq("project_id", projectId);
+
+    if (tasks && tasks.length > 0) {
+      const taskIds = tasks.map(t => t.id);
+
+      // Delete task_comments
+      await supabase
+        .from("task_comments")
+        .delete()
+        .in("task_id", taskIds);
+
+      // Delete task_deliverables
+      await supabase
+        .from("task_deliverables")
+        .delete()
+        .in("task_id", taskIds);
+
+      // Delete files related to tasks
+      await supabase
+        .from("files")
+        .delete()
+        .eq("entity_type", "task")
+        .in("entity_id", taskIds);
+
+      // Delete tasks
+      await supabase
+        .from("tasks")
+        .delete()
+        .eq("project_id", projectId);
+    }
+
+    // Finally, delete the project itself
     const { error } = await supabase
       .from("projects")
       .delete()
-      .or(`id.eq.${targetId},code.eq.${targetId}`);
+      .eq("id", projectId);
 
     if (error) {
       return NextResponse.json({ message: error.message }, { status: 400 });
@@ -235,6 +304,6 @@ export async function DELETE(request: NextRequest, context: { params: Promise<{ 
 
     return NextResponse.json({ ok: true });
   } catch (error) {
-    return NextResponse.json({ message: "Gagal menghapus project" }, { status: 500 });
+    return NextResponse.json({ message: "Failed to delete project." }, { status: 500 });
   }
 }

@@ -9,11 +9,11 @@ export default function ForgotPasswordPage() {
     <div className="space-y-6">
       <div>
         <p className="text-xs font-semibold uppercase tracking-[0.12em] text-indigo-600">
-          Pemulihan Akun
+          Account Recovery
         </p>
-        <h1 className="text-2xl font-semibold text-slate-900">Lupa password</h1>
+        <h1 className="text-2xl font-semibold text-slate-900">Forgot password</h1>
         <p className="text-sm text-slate-600">
-          Masukkan email untuk menerima tautan reset.
+          Enter your email to receive a reset link.
         </p>
       </div>
 
@@ -23,12 +23,12 @@ export default function ForgotPasswordPage() {
           <Input id="email" name="email" type="email" placeholder="you@example.com" />
         </div>
         <Button className="w-full" type="submit">
-          Kirim tautan reset
+          Send reset link
         </Button>
       </form>
 
       <Link className="text-sm text-indigo-600" href="/login">
-        Kembali ke login
+        Back to sign in
       </Link>
     </div>
   );
