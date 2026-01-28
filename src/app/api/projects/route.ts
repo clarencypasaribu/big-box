@@ -177,11 +177,12 @@ export async function POST(request: Request) {
       icon_bg: body.iconBg ? String(body.iconBg) : null,
       description: body.description ? String(body.description) : null,
       start_date: body.startDate ? String(body.startDate) : null,
-      end_date: body.endDate ? String(body.endDate) : null,
+      end_date: body.deadline ? String(body.deadline) : (body.endDate ? String(body.endDate) : null),
       team_members: Array.isArray(body.teamMembers)
         ? body.teamMembers.map((m: string) => String(m))
         : null,
       owner_id: ownerId ?? null,
+      stage_deadlines: body.stageDeadlines ? body.stageDeadlines : null,
     };
 
     if (!payload.name) {
@@ -208,7 +209,7 @@ export async function POST(request: Request) {
     const { data, error } = await supabase
       .from("projects")
       .insert(payload)
-      .select("id,code,name,location,status,progress,lead,icon_bg,description,start_date,end_date,team_members,owner_id,created_at,updated_at")
+      .select("id,code,name,location,status,progress,lead,icon_bg,description,start_date,end_date,team_members,owner_id,created_at,updated_at,stage_deadlines")
       .maybeSingle();
 
     if (error) {

@@ -6,13 +6,10 @@ import { useRouter } from "next/navigation";
 import {
   Eye,
   EyeOff,
-  LockKeyhole,
+  UserRound,
   Mail,
   Phone,
-  UserRound,
-  CheckCircle2,
   Briefcase,
-  ShieldCheck,
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -143,123 +140,120 @@ export default function RegisterPage() {
 
   return (
     <>
-      <div className="flex min-h-[720px] w-full max-w-6xl overflow-hidden rounded-[32px] bg-white shadow-2xl">
+      <div className="flex h-screen w-full overflow-hidden bg-white">
         {/* Left Side - Brand & Visual */}
-        <div className="relative hidden w-[45%] flex-col justify-between bg-gradient-to-br from-blue-50 via-orange-50 to-red-50 p-10 md:flex">
-          <div className="flex items-center gap-3">
-            <img src="/logo.png" alt="BigBox Logo" className="h-25 w-auto" />
+        <div className="hidden w-1/2 flex-col justify-between bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 p-12 lg:flex relative overflow-hidden">
+          <div className="absolute top-0 right-0 -mr-20 -mt-20 h-[500px] w-[500px] rounded-full bg-blue-400/10 blur-3xl" />
+          <div className="absolute bottom-0 left-0 -ml-20 -mb-20 h-[500px] w-[500px] rounded-full bg-indigo-400/10 blur-3xl" />
+
+          <div className="relative z-10 mb-auto -mt-6">
+            <img src="/logo.png" alt="BigBox Logo" className="w-48 h-auto" />
           </div>
 
-          <div className="mx-auto w-full max-w-sm transform rounded-[32px] bg-white/60 p-8 shadow-xl backdrop-blur-xl transition duration-500 hover:-translate-y-2 hover:shadow-2xl">
-            <div className="mb-6 grid size-12 place-items-center rounded-2xl bg-gradient-to-br from-blue-600 via-orange-500 to-red-500 text-white shadow-lg shadow-blue-500/30">
-              <ShieldCheck className="size-6" />
-            </div>
-            <h2 className="mb-3 text-2xl font-bold leading-tight text-slate-900">
-              Manage your projects with confidence.
-            </h2>
-            <p className="mb-6 text-sm leading-relaxed text-slate-600">
-              Join over 10,000+ professionals who trust BigBox for their daily project management and team collaboration workflow.
+          <div className="relative z-10 flex flex-1 flex-col justify-center max-w-lg mx-auto">
+            <h1 className="text-4xl font-bold leading-tight tracking-tight text-slate-900 mb-4">
+              Join the new standard in management.
+            </h1>
+            <p className="text-lg text-slate-600">
+              Start your journey with BigBox today. Create an account to organize, track, and deliver like never before.
             </p>
-            <div className="flex gap-2">
-              <div className="h-1.5 w-8 rounded-full bg-blue-600" />
-              <div className="h-1.5 w-1.5 rounded-full bg-slate-300" />
-              <div className="h-1.5 w-1.5 rounded-full bg-slate-300" />
-            </div>
           </div>
 
-          <p className="text-xs font-semibold text-slate-400">© 2026 BigBox Inc. All rights reserved.</p>
+          <div className="relative z-10 text-sm text-slate-500">
+            © 2026 BigBox Inc.
+          </div>
         </div>
 
         {/* Right Side - Form */}
-        <div className="flex flex-1 flex-col justify-center overflow-y-auto px-8 py-10 sm:px-12 lg:px-16">
+        <div className="flex flex-1 flex-col justify-center overflow-y-auto bg-white px-8 py-10 sm:px-12 lg:px-24">
           <div className="mx-auto w-full max-w-lg space-y-8">
             <div className="space-y-2">
-              <h1 className="text-4xl font-bold tracking-tight text-slate-900">Register</h1>
-              <p className="text-base text-slate-500">
+              <h1 className="text-3xl font-bold tracking-tight text-slate-900">Create an account</h1>
+              <p className="text-slate-500">
                 Let’s get you all set up so you can access your personal account.
               </p>
             </div>
 
-            <form className="space-y-6" onSubmit={handleSubmit}>
+            <form className="space-y-5" onSubmit={handleSubmit}>
               <div className="grid gap-5 sm:grid-cols-2">
                 <div className="space-y-2">
-                  <Label htmlFor="firstName" className="text-sm font-medium text-slate-700">First Name</Label>
+                  <Label htmlFor="firstName" className="text-[11px] font-bold uppercase tracking-wider text-slate-500">First Name</Label>
                   <div className="relative">
-                    <UserRound className="absolute left-3.5 top-1/2 size-5 -translate-y-1/2 text-slate-400" />
-                    <Input id="firstName" name="firstName" placeholder="John" className="h-12 rounded-xl border-slate-200 pl-11 shadow-sm focus-visible:ring-0 focus-visible:border-blue-600" />
+                    <UserRound className="absolute left-3.5 top-1/2 size-4 -translate-y-1/2 text-slate-400" />
+                    <Input id="firstName" name="firstName" placeholder="" className="h-11 rounded-md border-slate-200 bg-slate-50 pl-10 text-sm placeholder:text-slate-400 focus-visible:bg-white focus-visible:ring-2 focus-visible:ring-blue-600 focus-visible:ring-offset-0" />
                   </div>
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="lastName" className="text-sm font-medium text-slate-700">Last Name</Label>
-                  <Input id="lastName" name="lastName" placeholder="Doe" className="h-12 rounded-xl border-slate-200 shadow-sm focus-visible:ring-0 focus-visible:border-blue-600" />
+                  <Label htmlFor="lastName" className="text-[11px] font-bold uppercase tracking-wider text-slate-500">Last Name</Label>
+                  <Input id="lastName" name="lastName" placeholder="" className="h-11 rounded-md border-slate-200 bg-slate-50 px-3 text-sm placeholder:text-slate-400 focus-visible:bg-white focus-visible:ring-2 focus-visible:ring-blue-600 focus-visible:ring-offset-0" />
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="email" className="text-sm font-medium text-slate-700">Email</Label>
+                  <Label htmlFor="email" className="text-[11px] font-bold uppercase tracking-wider text-slate-500">Email</Label>
                   <div className="relative">
-                    <Mail className="absolute left-3.5 top-1/2 size-5 -translate-y-1/2 text-slate-400" />
-                    <Input id="email" name="email" type="email" placeholder="john@example.com" className="h-12 rounded-xl border-slate-200 pl-11 shadow-sm focus-visible:ring-0 focus-visible:border-blue-600" />
+                    <Mail className="absolute left-3.5 top-1/2 size-4 -translate-y-1/2 text-slate-400" />
+                    <Input id="email" name="email" type="email" placeholder="" className="h-11 rounded-md border-slate-200 bg-slate-50 pl-10 text-sm placeholder:text-slate-400 focus-visible:bg-white focus-visible:ring-2 focus-visible:ring-blue-600 focus-visible:ring-offset-0" />
                   </div>
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="phone" className="text-sm font-medium text-slate-700">Phone Number</Label>
+                  <Label htmlFor="phone" className="text-[11px] font-bold uppercase tracking-wider text-slate-500">Phone</Label>
                   <div className="relative">
-                    <Phone className="absolute left-3.5 top-1/2 size-5 -translate-y-1/2 text-slate-400" />
-                    <Input id="phone" name="phone" type="tel" placeholder="+62 812 3456 789" className="h-12 rounded-xl border-slate-200 pl-11 shadow-sm focus-visible:ring-0 focus-visible:border-blue-600" />
+                    <Phone className="absolute left-3.5 top-1/2 size-4 -translate-y-1/2 text-slate-400" />
+                    <Input id="phone" name="phone" type="tel" placeholder="+62 000 0000" className="h-11 rounded-md border-slate-200 bg-slate-50 pl-10 text-sm placeholder:text-slate-400 focus-visible:bg-white focus-visible:ring-2 focus-visible:ring-blue-600 focus-visible:ring-offset-0" />
                   </div>
                 </div>
 
                 <div className="space-y-2 sm:col-span-2">
-                  <Label htmlFor="position" className="text-sm font-medium text-slate-700">Position</Label>
+                  <Label htmlFor="position" className="text-[11px] font-bold uppercase tracking-wider text-slate-500">Position</Label>
                   <div className="relative">
-                    <Briefcase className="absolute left-3.5 top-1/2 size-5 -translate-y-1/2 text-slate-400" />
-                    <Input id="position" name="position" placeholder="e.g. Senior Product Manager" className="h-12 rounded-xl border-slate-200 pl-11 shadow-sm focus-visible:ring-0 focus-visible:border-blue-600" />
+                    <Briefcase className="absolute left-3.5 top-1/2 size-4 -translate-y-1/2 text-slate-400" />
+                    <Input id="position" name="position" placeholder="" className="h-11 rounded-md border-slate-200 bg-slate-50 pl-10 text-sm placeholder:text-slate-400 focus-visible:bg-white focus-visible:ring-2 focus-visible:ring-blue-600 focus-visible:ring-offset-0" />
                   </div>
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="password" className="text-sm font-medium text-slate-700">Password</Label>
+                  <Label htmlFor="password" className="text-[11px] font-bold uppercase tracking-wider text-slate-500">Password</Label>
                   <div className="relative">
                     <Input
                       id="password"
                       name="password"
                       type={showPassword ? "text" : "password"}
-                      placeholder="••••••••"
-                      className="h-12 rounded-xl border-slate-200 pr-11 shadow-sm focus-visible:ring-0 focus-visible:border-blue-600"
+                      placeholder=""
+                      className="h-11 rounded-md border-slate-200 bg-slate-50 px-3 text-sm placeholder:text-slate-400 focus-visible:bg-white focus-visible:ring-2 focus-visible:ring-blue-600 focus-visible:ring-offset-0 pr-10"
                     />
                     <button
                       type="button"
-                      className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
                       onClick={() => setShowPassword((prev) => !prev)}
                     >
-                      {showPassword ? <EyeOff className="size-5" /> : <Eye className="size-5" />}
+                      {showPassword ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
                     </button>
                   </div>
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="confirmPassword" className="text-sm font-medium text-slate-700">Confirm Password</Label>
+                  <Label htmlFor="confirmPassword" className="text-[11px] font-bold uppercase tracking-wider text-slate-500">Confirm Password</Label>
                   <div className="relative">
                     <Input
                       id="confirmPassword"
                       name="confirmPassword"
                       type={showConfirmPassword ? "text" : "password"}
-                      placeholder="••••••••"
-                      className="h-12 rounded-xl border-slate-200 pr-11 shadow-sm focus-visible:ring-0 focus-visible:border-blue-600"
+                      placeholder=""
+                      className="h-11 rounded-md border-slate-200 bg-slate-50 px-3 text-sm placeholder:text-slate-400 focus-visible:bg-white focus-visible:ring-2 focus-visible:ring-blue-600 focus-visible:ring-offset-0 pr-10"
                     />
                     <button
                       type="button"
-                      className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
                       onClick={() => setShowConfirmPassword((prev) => !prev)}
                     >
-                      {showConfirmPassword ? <EyeOff className="size-5" /> : <Eye className="size-5" />}
+                      {showConfirmPassword ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
                     </button>
                   </div>
                 </div>
               </div>
 
               <div className="flex items-center gap-3">
-                <input type="checkbox" id="terms" required className="size-5 rounded border-slate-300 text-blue-600 focus:ring-blue-600" />
-                <Label htmlFor="terms" className="text-sm text-slate-600 font-normal cursor-pointer">
+                <input type="checkbox" id="terms" required className="size-4 rounded border-slate-300 text-blue-600 focus:ring-blue-600" />
+                <Label htmlFor="terms" className="text-xs text-slate-600 font-normal cursor-pointer">
                   I agree to all the{" "}
                   <a className="font-semibold text-blue-600 hover:underline" href="#" onClick={(e) => e.preventDefault()}>
                     Terms
@@ -272,7 +266,7 @@ export default function RegisterPage() {
               </div>
 
               <Button
-                className="h-12 w-full rounded-xl bg-gradient-to-r from-blue-600 via-orange-500 to-red-500 text-base font-semibold text-white shadow-lg shadow-blue-500/30 transition-all hover:scale-[1.01] hover:shadow-blue-500/40"
+                className="h-11 w-full rounded-lg bg-gradient-to-r from-blue-700 to-blue-900 text-sm font-semibold text-white shadow-md transition-all hover:opacity-90 active:scale-[0.98]"
                 type="submit"
                 disabled={loading}
               >

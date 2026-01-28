@@ -32,7 +32,7 @@ export default async function MemberDashboardPage() {
 
       <div className="grid gap-4 xl:grid-cols-[1.4fr,1fr]">
         <QuickActionsClient projects={memberProjects} />
-        <NotificationsClient onlyToday limit={5} showFooterLink />
+        <NotificationsClient onlyToday={false} limit={4} showFooterLink groupByDate />
       </div>
 
       <UrgentTasksClient projects={memberProjects} />

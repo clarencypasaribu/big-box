@@ -108,13 +108,21 @@ export async function GET(request: NextRequest, context: { params: Promise<{ id:
     }
 
     const supabase = await createSupabaseServiceClient({ allowWrite: true });
-    const { data, error } = await supabase
+
+    let query = supabase
       .from("projects")
       .select(
-        "id,code,name,location,status,progress,lead,icon_bg,description,start_date,end_date,team_members,updated_at,created_at"
-      )
-      .or(`id.eq.${targetId},code.eq.${targetId}`)
-      .maybeSingle();
+        "id,code,name,location,status,progress,lead,icon_bg,description,start_date,end_date,team_members,updated_at,created_at,stage_deadlines"
+      );
+
+    const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(targetId);
+    if (isUUID) {
+      query = query.or(`id.eq.${targetId},code.eq.${targetId}`);
+    } else {
+      query = query.eq("code", targetId);
+    }
+
+    const { data, error } = await query.maybeSingle();
 
     if (error) {
       return NextResponse.json({ message: error.message }, { status: 400 });
@@ -157,10 +165,11 @@ export async function PUT(request: NextRequest, context: { params: Promise<{ id:
       icon_bg: body.iconBg ? String(body.iconBg) : null,
       description: body.description ? String(body.description) : null,
       start_date: body.startDate ? String(body.startDate) : null,
-      end_date: body.endDate ? String(body.endDate) : null,
+      end_date: body.deadline ? String(body.deadline) : (body.endDate ? String(body.endDate) : null),
       team_members: Array.isArray(body.teamMembers)
         ? body.teamMembers.map((m: string) => String(m))
         : null,
+      stage_deadlines: body.stageDeadlines ? body.stageDeadlines : null,
     };
 
     if (!payload.name) {
@@ -168,12 +177,17 @@ export async function PUT(request: NextRequest, context: { params: Promise<{ id:
     }
 
     const supabase = await createSupabaseServiceClient({ allowWrite: true });
-    const { data, error } = await supabase
-      .from("projects")
-      .update(payload)
-      .or(`id.eq.${targetId},code.eq.${targetId}`)
-      .select()
-      .maybeSingle();
+
+    const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(targetId);
+    let query = supabase.from("projects").update(payload);
+
+    if (isUUID) {
+      query = query.or(`id.eq.${targetId},code.eq.${targetId}`);
+    } else {
+      query = query.eq("code", targetId);
+    }
+
+    const { data, error } = await query.select().maybeSingle();
 
     if (error) {
       return NextResponse.json({ message: error.message }, { status: 400 });
@@ -226,11 +240,17 @@ export async function DELETE(request: NextRequest, context: { params: Promise<{ 
     const supabase = await createSupabaseServiceClient({ allowWrite: true });
 
     // First, get the project to find its ID (in case targetId is a code)
-    const { data: project } = await supabase
-      .from("projects")
-      .select("id")
-      .or(`id.eq.${targetId},code.eq.${targetId}`)
-      .maybeSingle();
+    // First, get the project to find its ID (in case targetId is a code)
+    let query = supabase.from("projects").select("id");
+    const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(targetId);
+
+    if (isUUID) {
+      query = query.or(`id.eq.${targetId},code.eq.${targetId}`);
+    } else {
+      query = query.eq("code", targetId);
+    }
+
+    const { data: project } = await query.maybeSingle();
 
     if (!project) {
       return NextResponse.json({ message: "Project tidak ditemukan" }, { status: 404 });

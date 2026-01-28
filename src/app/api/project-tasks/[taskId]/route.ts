@@ -33,6 +33,35 @@ export async function PATCH(request: Request, context: RouteContext) {
       return NextResponse.json({ message: error.message }, { status: 400 });
     }
 
+    // Auto-update project progress when task status changes
+    if (data?.project_id && body.status !== undefined) {
+      try {
+        // Get all tasks for this project
+        const { data: allTasks } = await supabase
+          .from("tasks")
+          .select("id,status")
+          .eq("project_id", data.project_id);
+
+        if (allTasks && allTasks.length > 0) {
+          // Count completed tasks
+          const completedCount = allTasks.filter(
+            (t) => t.status === "Done" || t.status === "Completed"
+          ).length;
+
+          // Calculate progress percentage
+          const progress = Math.round((completedCount / allTasks.length) * 100);
+
+          // Update project progress
+          await supabase
+            .from("projects")
+            .update({ progress, updated_at: new Date().toISOString() })
+            .eq("id", data.project_id);
+        }
+      } catch {
+        // Silently ignore progress update errors
+      }
+    }
+
     return NextResponse.json({ data });
   } catch (error) {
     return NextResponse.json({ message: "Failed to update task." }, { status: 500 });

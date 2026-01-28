@@ -48,8 +48,9 @@ function PrintButton() {
   );
 }
 
-export default async function ProjectReportPage({ params }: { params: { projectId: string } }) {
-  const resolvedId = decodeURIComponent(params.projectId);
+export default async function ProjectReportPage({ params }: { params: Promise<{ projectId: string }> }) {
+  const { projectId } = await params;
+  const resolvedId = decodeURIComponent(projectId);
   const data = await loadProjectReport(normalizeId(resolvedId));
 
   if (!data?.project) {

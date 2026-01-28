@@ -56,7 +56,7 @@ type Column = {
   cards: ColumnCard[];
 };
 
-type ApprovalStatus = NonNullable<Column["approvalStatus"]>;
+type ApprovalStatus = NonNullable<Column["approvalStatus"]> | "Rejected";
 
 const stageTitleMap: Record<string, string> = {
   "stage-1": "Stage F1: Initiation",
@@ -130,6 +130,7 @@ const approvalTone: Record<ApprovalStatus, string> = {
   "Not Submitted": "bg-slate-100 text-slate-600",
   Pending: "bg-amber-100 text-amber-700",
   Approved: "bg-emerald-100 text-emerald-700",
+  Rejected: "bg-rose-100 text-rose-700",
 };
 
 const priorityTone = {
@@ -232,6 +233,7 @@ export function ProjectBoardClient({
   const [searchTerm, setSearchTerm] = useState("");
   const [stageFilter, setStageFilter] = useState<string>("All stages");
   const [stageApprovals, setStageApprovals] = useState<Record<string, ApprovalStatus>>({});
+  const [approvalComments, setApprovalComments] = useState<Record<string, string>>({});
   const [loadingTasks, setLoadingTasks] = useState(true);
 
   const refreshProjectData = useCallback(async (options?: { silent?: boolean }) => {
@@ -248,9 +250,16 @@ export function ProjectBoardClient({
       const approvalsBody = approvalsRes.ok ? await approvalsRes.json() : { data: [] };
 
       const approvalsMap: Record<string, ApprovalStatus> = {};
+      const commentsMap: Record<string, string> = {};
+
       approvalsBody.data?.forEach((row: any) => {
         approvalsMap[row.stage_id] = row.status as ApprovalStatus;
+        if (row.comment) {
+          commentsMap[row.stage_id] = row.comment;
+        }
       });
+
+      setApprovalComments(commentsMap);
 
       const tasks = Array.isArray(tasksBody.data) ? tasksBody.data : [];
       const sanitizedApprovals: Record<string, ApprovalStatus> = {};
@@ -522,54 +531,68 @@ export function ProjectBoardClient({
                             </DropdownMenuContent>
                           </DropdownMenu>
                         </div>
-                        <div className="mt-2 flex flex-wrap items-center gap-2">
-                          <span
-                            className={cn(
-                              "rounded-md px-2 py-1 text-xs font-semibold",
-                              approvalTone[approvalStatus]
-                            )}
-                          >
-                            {approvalStatus}
-                          </span>
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            className="h-7 px-2 text-xs"
-                            disabled={
-                              approvalStatus === "Pending" ||
-                              approvalStatus === "Approved" ||
-                              isLocked ||
-                              column.cards.length === 0 ||
-                              (column.status !== "Completed" && column.cards.some((card) => !card.done))
-                            }
-                            onClick={async () => {
-                              try {
-                                const res = await fetch("/api/project-stage-approvals", {
-                                  method: "POST",
-                                  headers: { "Content-Type": "application/json" },
-                                  body: JSON.stringify({
-                                    projectId,
-                                    stageId: column.id,
-                                    status: "Pending",
-                                  }),
-                                });
-                                if (!res.ok) {
-                                  const body = await res.json().catch(() => ({}));
-                                  alert(body.message || "Failed to submit approval.");
-                                  return;
-                                }
-                                await refreshProjectData();
-                              } catch (err) {
-                                alert("An error occurred while submitting the approval.");
+                        <div className="mt-2 flex flex-col gap-2">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <span
+                              className={cn(
+                                "rounded-md px-2 py-1 text-xs font-semibold",
+                                approvalTone[approvalStatus] ?? "bg-slate-100 text-slate-600"
+                              )}
+                            >
+                              {approvalStatus}
+                            </span>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className={cn(
+                                "h-7 px-2 text-xs",
+                                approvalStatus === "Rejected" && "border-rose-200 text-rose-600 hover:bg-rose-50 hover:text-rose-700"
+                              )}
+                              disabled={
+                                approvalStatus === "Pending" ||
+                                approvalStatus === "Approved" ||
+                                isLocked ||
+                                column.cards.length === 0 ||
+                                (column.status !== "Completed" && column.cards.some((card) => !card.done))
                               }
-                            }}
-                          >
-                            {approvalLabel}
-                          </Button>
-                          {isLocked ? (
-                            <div className="flex items-center gap-1 text-xs text-slate-400">
-                              <Lock className="size-3" />
-                              Waiting for the previous stage approval
+                              onClick={async (event) => {
+                                // Prevent any potential form submission or bubbling
+                                event.preventDefault();
+                                try {
+                                  const res = await fetch("/api/project-stage-approvals", {
+                                    method: "POST",
+                                    headers: { "Content-Type": "application/json" },
+                                    body: JSON.stringify({
+                                      projectId,
+                                      stageId: column.id,
+                                      status: "Pending",
+                                    }),
+                                  });
+                                  if (!res.ok) {
+                                    const body = await res.json().catch(() => ({}));
+                                    alert(body.message || "Failed to submit approval.");
+                                    return;
+                                  }
+                                  await refreshProjectData({ silent: true });
+                                } catch (err) {
+                                  alert("An error occurred while submitting the approval.");
+                                }
+                              }}
+                            >
+                              {approvalLabel}
+                            </Button>
+                            {isLocked ? (
+                              <div className="flex items-center gap-1 text-xs text-slate-400">
+                                <Lock className="size-3" />
+                                Waiting for the previous stage approval
+                              </div>
+                            ) : null}
+                          </div>
+
+                          {approvalStatus === "Rejected" && approvalComments[column.id] ? (
+                            <div className="animate-in fade-in zoom-in-95 duration-200 mt-1 rounded-md border border-rose-200 bg-rose-50 p-2 text-xs text-rose-800">
+                              <p className="font-semibold mb-0.5">⚠️ Rejection Reason:</p>
+                              <p>{approvalComments[column.id]}</p>
                             </div>
                           ) : null}
                         </div>

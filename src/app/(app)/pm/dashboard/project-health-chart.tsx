@@ -1,0 +1,163 @@
+"use client";
+
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+
+export type ProjectHealthData = {
+    onTrack: number;
+    atRisk: number;
+    delayed: number;
+};
+
+export function ProjectHealthChart({ data }: { data: ProjectHealthData }) {
+    const total = data.onTrack + data.atRisk + data.delayed;
+
+    if (total === 0) {
+        return (
+            <Card className="border-slate-200/60 bg-gradient-to-br from-white to-slate-50/50 shadow-lg">
+                <CardHeader className="pb-2">
+                    <CardTitle className="text-lg font-semibold text-slate-800">
+                        Project Health Status
+                    </CardTitle>
+                </CardHeader>
+                <CardContent className="flex h-52 flex-col items-center justify-center gap-3">
+                    <div className="flex size-16 items-center justify-center rounded-full bg-slate-100">
+                        <svg className="size-8 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                        </svg>
+                    </div>
+                    <p className="text-sm font-medium text-slate-500">No project data available</p>
+                </CardContent>
+            </Card>
+        );
+    }
+
+    const onTrackPercent = (data.onTrack / total) * 100;
+    const atRiskPercent = (data.atRisk / total) * 100;
+    const delayedPercent = (data.delayed / total) * 100;
+
+    const circumference = 251.3;
+    const onTrackDash = (onTrackPercent / 100) * circumference;
+    const atRiskDash = (atRiskPercent / 100) * circumference;
+    const delayedDash = (delayedPercent / 100) * circumference;
+
+    const legendItems = [
+        { label: "On Track", value: data.onTrack, color: "from-emerald-400 to-emerald-500", bg: "bg-emerald-500", percent: onTrackPercent },
+        { label: "At Risk", value: data.atRisk, color: "from-amber-400 to-amber-500", bg: "bg-amber-500", percent: atRiskPercent },
+        { label: "Delayed", value: data.delayed, color: "from-rose-400 to-rose-500", bg: "bg-rose-500", percent: delayedPercent },
+    ];
+
+    return (
+        <Card className="border-slate-200/60 bg-gradient-to-br from-white to-slate-50/50 shadow-lg transition-shadow hover:shadow-xl">
+            <CardHeader className="pb-3">
+                <CardTitle className="text-lg font-semibold text-slate-800">
+                    Project Health Status
+                </CardTitle>
+            </CardHeader>
+            <CardContent>
+                <div className="flex items-center justify-between gap-8">
+                    {/* Donut Chart */}
+                    <div className="relative">
+                        <svg width="160" height="160" viewBox="0 0 100 100" className="drop-shadow-md">
+                            {/* Background circle */}
+                            <circle
+                                cx="50"
+                                cy="50"
+                                r="40"
+                                fill="none"
+                                stroke="#f1f5f9"
+                                strokeWidth="12"
+                            />
+                            {/* Segments */}
+                            <g className="transform -rotate-90 origin-center">
+                                {data.onTrack > 0 && (
+                                    <circle
+                                        cx="50"
+                                        cy="50"
+                                        r="40"
+                                        fill="transparent"
+                                        stroke="url(#gradientGreen)"
+                                        strokeWidth="12"
+                                        strokeDasharray={`${onTrackDash} ${circumference}`}
+                                        strokeDashoffset="0"
+                                        strokeLinecap="round"
+                                        className="transition-all duration-700 ease-out"
+                                    />
+                                )}
+                                {data.atRisk > 0 && (
+                                    <circle
+                                        cx="50"
+                                        cy="50"
+                                        r="40"
+                                        fill="transparent"
+                                        stroke="url(#gradientAmber)"
+                                        strokeWidth="12"
+                                        strokeDasharray={`${atRiskDash} ${circumference}`}
+                                        strokeDashoffset={-onTrackDash}
+                                        strokeLinecap="round"
+                                        className="transition-all duration-700 ease-out"
+                                    />
+                                )}
+                                {data.delayed > 0 && (
+                                    <circle
+                                        cx="50"
+                                        cy="50"
+                                        r="40"
+                                        fill="transparent"
+                                        stroke="url(#gradientRose)"
+                                        strokeWidth="12"
+                                        strokeDasharray={`${delayedDash} ${circumference}`}
+                                        strokeDashoffset={-(onTrackDash + atRiskDash)}
+                                        strokeLinecap="round"
+                                        className="transition-all duration-700 ease-out"
+                                    />
+                                )}
+                            </g>
+                            {/* Gradient definitions */}
+                            <defs>
+                                <linearGradient id="gradientGreen" x1="0%" y1="0%" x2="100%" y2="100%">
+                                    <stop offset="0%" stopColor="#34d399" />
+                                    <stop offset="100%" stopColor="#10b981" />
+                                </linearGradient>
+                                <linearGradient id="gradientAmber" x1="0%" y1="0%" x2="100%" y2="100%">
+                                    <stop offset="0%" stopColor="#fbbf24" />
+                                    <stop offset="100%" stopColor="#f59e0b" />
+                                </linearGradient>
+                                <linearGradient id="gradientRose" x1="0%" y1="0%" x2="100%" y2="100%">
+                                    <stop offset="0%" stopColor="#fb7185" />
+                                    <stop offset="100%" stopColor="#ef4444" />
+                                </linearGradient>
+                            </defs>
+                        </svg>
+                        {/* Center content */}
+                        <div className="absolute inset-0 flex flex-col items-center justify-center">
+                            <span className="text-3xl font-bold bg-gradient-to-br from-slate-700 to-slate-900 bg-clip-text text-transparent">
+                                {total}
+                            </span>
+                            <span className="text-xs font-medium text-slate-500">Projects</span>
+                        </div>
+                    </div>
+
+                    {/* Legend */}
+                    <div className="flex flex-col gap-4">
+                        {legendItems.map((item) => (
+                            <div key={item.label} className="group flex items-center gap-3 cursor-default">
+                                <div className={`size-3.5 rounded-full ${item.bg} shadow-sm ring-2 ring-white`} />
+                                <div className="flex flex-col">
+                                    <span className="text-sm font-semibold text-slate-700 group-hover:text-slate-900 transition-colors">
+                                        {item.label}
+                                    </span>
+                                    <div className="flex items-center gap-2">
+                                        <span className="text-lg font-bold text-slate-800">{item.value}</span>
+                                        <span className="text-xs font-medium text-slate-400">
+                                            ({item.percent.toFixed(0)}%)
+                                        </span>
+                                    </div>
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            </CardContent>
+        </Card>
+    );
+}

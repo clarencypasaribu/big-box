@@ -22,6 +22,7 @@ type NotificationsClientProps = {
     limit?: number;
     showFooterLink?: boolean;
     groupByDate?: boolean;
+    variant?: "card" | "clean";
 };
 
 export function NotificationsClient({
@@ -29,6 +30,7 @@ export function NotificationsClient({
     limit = 5,
     showFooterLink = true,
     groupByDate = false,
+    variant = "card",
 }: NotificationsClientProps) {
     const [notifications, setNotifications] = useState<Notification[]>([]);
     const [loading, setLoading] = useState(true);
@@ -118,15 +120,20 @@ export function NotificationsClient({
     const headerLabel = groupByDate && groupedNotifications.length > 0 ? groupedNotifications[0].label : null;
 
     return (
-        <div className="flex flex-col gap-3 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-            <div className="flex items-center justify-between">
-                <h3 className="text-lg font-semibold text-slate-900">Notifications</h3>
-                {headerLabel ? (
-                    <span className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">
-                        {headerLabel}
-                    </span>
-                ) : null}
-            </div>
+        <div className={cn(
+            "flex flex-col gap-3",
+            variant === "card" && "rounded-2xl border border-slate-200 bg-white p-5 shadow-sm"
+        )}>
+            {variant === "card" && (
+                <div className="flex items-center justify-between">
+                    <h3 className="text-lg font-semibold text-slate-900">Notifications</h3>
+                    {headerLabel ? (
+                        <span className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">
+                            {headerLabel}
+                        </span>
+                    ) : null}
+                </div>
+            )}
 
             <div className="flex flex-col gap-3">
                 {loading ? (
@@ -141,6 +148,10 @@ export function NotificationsClient({
                 ) : groupByDate ? (
                     groupedNotifications.map((group) => (
                         <div key={group.label} className="space-y-3">
+                            <h4 className="text-xs font-semibold uppercase tracking-wider text-slate-500 mt-4 first:mt-0">
+                                {group.label}
+                            </h4>
+                            <div className="space-y-3">
                                 {group.items.map((notif) => {
                                     const getNotifLink = () => {
                                         if (!notif.link) return null;
@@ -183,6 +194,7 @@ export function NotificationsClient({
                                         </div>
                                     );
                                 })}
+                            </div>
                         </div>
                     ))
                 ) : (

@@ -9,6 +9,8 @@ import { Button } from "@/components/ui/button";
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
+  DialogFooter,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
@@ -45,6 +47,15 @@ export type ProjectRow = {
   startDate?: string | null;
   endDate?: string | null;
   teamMembers?: string[];
+  stageDeadlines?: StageDeadlines | null;
+};
+
+type StageDeadlines = {
+  "stage-1": string;
+  "stage-2": string;
+  "stage-3": string;
+  "stage-4": string;
+  "stage-5": string;
 };
 
 type ProjectFormState = {
@@ -52,12 +63,28 @@ type ProjectFormState = {
   code: string;
   location: string;
   status: ProjectRow["status"];
-  progress: number;
   lead: string;
   description: string;
   startDate: string;
-  endDate: string;
+  deadline: string;
   teamMembers: string[];
+  stageDeadlines: StageDeadlines;
+};
+
+const defaultStageDeadlines: StageDeadlines = {
+  "stage-1": "",
+  "stage-2": "",
+  "stage-3": "",
+  "stage-4": "",
+  "stage-5": "",
+};
+
+const stageLabels: Record<string, string> = {
+  "stage-1": "Initiation",
+  "stage-2": "Planning",
+  "stage-3": "Execution",
+  "stage-4": "Monitoring & Controlling",
+  "stage-5": "Closure",
 };
 
 const statusOptions: ProjectRow["status"][] = ["In Progress", "Completed", "Not Started", "Pending"];
@@ -128,6 +155,7 @@ export function ProjectsClient({
   const [dialogMode, setDialogMode] = useState<"create" | "edit" | "view">("create");
   const [saving, setSaving] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [projectToDelete, setProjectToDelete] = useState<ProjectRow | null>(null);
   const [editId, setEditId] = useState<string | null>(null);
   const [leadOptions, setLeadOptions] = useState<string[]>([]);
   const [teamOptions, setTeamOptions] = useState<string[]>(defaultTeamOptions);
@@ -138,12 +166,12 @@ export function ProjectsClient({
     code: "",
     location: "",
     status: "In Progress",
-    progress: 0,
     lead: "",
     description: "",
     startDate: "",
-    endDate: "",
+    deadline: "",
     teamMembers: [],
+    stageDeadlines: { ...defaultStageDeadlines },
   });
 
   const dialogTitle =
@@ -250,12 +278,12 @@ export function ProjectsClient({
       code: "",
       location: "",
       status: "In Progress",
-      progress: 0,
       lead: "",
       description: "",
       startDate: "",
-      endDate: "",
+      deadline: "",
       teamMembers: [],
+      stageDeadlines: { ...defaultStageDeadlines },
     });
     setDialogOpen(true);
     setError(null);
@@ -282,12 +310,12 @@ export function ProjectsClient({
       code: project.code || "",
       location: project.location || "",
       status: project.status,
-      progress: project.progress ?? 0,
       lead: project.lead || leadOptions[0] || "",
       description: project.description || "",
       startDate: project.startDate || "",
-      endDate: project.endDate || "",
+      deadline: project.endDate || "",
       teamMembers: project.teamMembers || [],
+      stageDeadlines: { ...defaultStageDeadlines },
     });
     setDialogOpen(true);
     setError(null);
@@ -313,7 +341,7 @@ export function ProjectsClient({
     const payload = {
       ...form,
       id: isEdit ? safeEditId || undefined : undefined,
-      progress: Number(form.progress) || 0,
+      progress: 0, // Auto-calculated from tasks
     };
     if (isEdit && !safeEditId) {
       setSaving(false);
@@ -349,8 +377,9 @@ export function ProjectsClient({
         description: saved?.description ?? payload.description,
         iconBg: saved?.icon_bg ?? "bg-indigo-100 text-indigo-700",
         startDate: saved?.start_date ?? payload.startDate ?? null,
-        endDate: saved?.end_date ?? payload.endDate ?? null,
+        endDate: saved?.end_date ?? payload.deadline ?? null,
         teamMembers: saved?.team_members ?? payload.teamMembers ?? [],
+        stageDeadlines: saved?.stage_deadlines ?? payload.stageDeadlines ?? null,
       };
 
       setProjects((prev) => {
@@ -371,7 +400,9 @@ export function ProjectsClient({
     }
   }
 
-  async function handleDelete(id?: string | null, code?: string | null) {
+
+
+  async function confirmDelete(id?: string | null, code?: string | null) {
     const targetId = normalizeId(id) || normalizeId(code);
     if (!targetId) {
       setError("Project ID is required to delete.");
@@ -397,6 +428,7 @@ export function ProjectsClient({
             normalizeId(item.id) !== targetId && normalizeId(item.code) !== targetId
         )
       );
+      setProjectToDelete(null);
     } catch (error) {
       setError(error instanceof Error ? error.message : "Failed to delete project.");
     } finally {
@@ -442,21 +474,21 @@ export function ProjectsClient({
 
   return (
     <div className="flex flex-col gap-3 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-        <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-          <div className="space-y-1">
-            <p className="text-sm font-semibold text-slate-800">Projects</p>
-          </div>
-          <div className="flex items-center gap-2">
-            <Button variant="outline" className="gap-2" onClick={fetchProjects} disabled={loading}>
-              {loading ? <Loader2 className="size-4 animate-spin" /> : null}
-              Refresh
-            </Button>
-            <Button className="bg-[#256eff] text-white hover:bg-[#1c55c7]" onClick={openCreateDialog}>
-              <Plus className="mr-2 size-4" />
-              Add Project
-            </Button>
-          </div>
+      <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+        <div className="space-y-1">
+          <p className="text-sm font-semibold text-slate-800">Projects</p>
         </div>
+        <div className="flex items-center gap-2">
+          <Button variant="outline" className="gap-2" onClick={fetchProjects} disabled={loading}>
+            {loading ? <Loader2 className="size-4 animate-spin" /> : null}
+            Refresh
+          </Button>
+          <Button className="bg-[#256eff] text-white hover:bg-[#1c55c7]" onClick={openCreateDialog}>
+            <Plus className="mr-2 size-4" />
+            Add Project
+          </Button>
+        </div>
+      </div>
       <Table>
         <TableHeader className="bg-slate-50 text-xs font-semibold uppercase tracking-wide text-slate-500">
           <TableRow className="hover:bg-slate-50">
@@ -533,7 +565,7 @@ export function ProjectsClient({
                       </DropdownMenuItem>
                       <DropdownMenuItem
                         className="gap-2 text-rose-600 focus:text-rose-700"
-                        onClick={() => handleDelete(project.id, project.code ?? null)}
+                        onClick={() => setProjectToDelete(project)}
                         disabled={deletingId === (project.id ?? "").trim()}
                       >
                         {deletingId === project.id ? (
@@ -561,187 +593,191 @@ export function ProjectsClient({
       {error ? <p className="text-sm text-red-600">{error}</p> : null}
 
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent className="max-w-3xl rounded-2xl">
+        <DialogContent className="max-w-5xl rounded-2xl">
           <DialogHeader>
             <DialogTitle className="text-xl font-semibold text-slate-900">
               {dialogTitle}
             </DialogTitle>
           </DialogHeader>
           <form className="space-y-4" onSubmit={handleSubmit}>
-            <div className="grid gap-3 sm:grid-cols-2">
-              <div className="space-y-2 sm:col-span-2">
-                <Label htmlFor="name">Project Name</Label>
-                <Input
-                  id="name"
-                  name="name"
-                  value={form.name}
-                  onChange={(e) => setForm((prev) => ({ ...prev, name: e.target.value }))}
-                  placeholder="Project Alpha"
-                  required
-                  disabled={isViewMode}
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="code">Code</Label>
-                <Input
-                  id="code"
-                  name="code"
-                  value={form.code}
-                  onChange={(e) => setForm((prev) => ({ ...prev, code: e.target.value }))}
-                  placeholder="PRJ-001 (leave blank for auto)"
-                  disabled={isViewMode}
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="location">Location</Label>
-                <Input
-                  id="location"
-                  name="location"
-                  value={form.location}
-                  onChange={(e) => setForm((prev) => ({ ...prev, location: e.target.value }))}
-                  placeholder="Remote / Jakarta / Singapore"
-                  disabled={isViewMode}
-                />
-              </div>
-            </div>
-
-            <div className="grid gap-3 sm:grid-cols-2">
-              <div className="space-y-2">
-                <Label htmlFor="status">Status</Label>
-                <select
-                  id="status"
-                  name="status"
-                  className="h-10 w-full rounded-md border border-slate-200 bg-white px-3 text-sm text-slate-800 shadow-sm outline-none focus:border-indigo-500 focus:ring-4 focus:ring-indigo-100"
-                  value={form.status}
-                  onChange={(e) =>
-                    setForm((prev) => ({ ...prev, status: e.target.value as ProjectRow["status"] }))
-                  }
-                  disabled={isViewMode}
-                >
-                  {statusOptions.map((status) => (
-                    <option key={status} value={status}>
-                      {status}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="progress">Progress (%)</Label>
-                <Input
-                  id="progress"
-                  name="progress"
-                  type="number"
-                  min={0}
-                  max={100}
-                  value={form.progress}
-                  onChange={(e) =>
-                    setForm((prev) => ({ ...prev, progress: Number(e.target.value) || 0 }))
-                  }
-                  placeholder="0 - 100"
-                  disabled={isViewMode}
-                />
-              </div>
-            </div>
-
-            <div className="grid gap-3 sm:grid-cols-2">
-              <div className="space-y-2">
-                <Label htmlFor="lead">Project Lead</Label>
-                <select
-                  id="lead"
-                  name="lead"
-                  className="h-10 w-full rounded-md border border-slate-200 bg-white px-3 text-sm text-slate-800 shadow-sm outline-none focus:border-indigo-500 focus:ring-4 focus:ring-indigo-100"
-                  value={form.lead}
-                  onChange={(e) => setForm((prev) => ({ ...prev, lead: e.target.value }))}
-                  disabled={isViewMode || leadOptions.length === 0}
-                >
-                  <option value="">{leadOptions.length ? "Select a lead" : "No project managers available"}</option>
-                  {leadOptions.map((member) => (
-                    <option key={member} value={member}>
-                      {member}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <div className="space-y-2 sm:col-span-2">
-                <Label htmlFor="teamMembers">Team Members</Label>
-                <div className="space-y-2 rounded-lg border border-slate-200 bg-white p-3">
+            <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
+              {/* Left Column: General Info */}
+              <div className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="name">Project Name</Label>
                   <Input
-                    id="teamMembersSearch"
-                    name="teamMembersSearch"
-                    value={teamSearch}
-                    onChange={(e) => setTeamSearch(e.target.value)}
-                    placeholder="Search members..."
+                    id="name"
+                    name="name"
+                    value={form.name}
+                    onChange={(e) => setForm((prev) => ({ ...prev, name: e.target.value }))}
+                    placeholder="Project Alpha"
+                    required
                     disabled={isViewMode}
                   />
-                  <div className="max-h-40 space-y-1 overflow-auto">
-                    {filteredTeam.length === 0 ? (
-                      <p className="text-xs text-slate-500">No results.</p>
-                    ) : (
-                      filteredTeam.map((member) => {
-                        const checked = form.teamMembers.includes(member);
-                        return (
-                          <label
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="location">Location</Label>
+                  <Input
+                    id="location"
+                    name="location"
+                    value={form.location}
+                    onChange={(e) => setForm((prev) => ({ ...prev, location: e.target.value }))}
+                    placeholder="Remote / Jakarta / Singapore"
+                    disabled={isViewMode}
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="description">Description</Label>
+                  <textarea
+                    id="description"
+                    name="description"
+                    value={form.description}
+                    onChange={(e) => setForm((prev) => ({ ...prev, description: e.target.value }))}
+                    className="min-h-[90px] w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 shadow-sm outline-none focus:border-indigo-500 focus:ring-4 focus:ring-indigo-100"
+                    placeholder="Deskripsi singkat..."
+                    disabled={isViewMode}
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="lead">Project Lead</Label>
+                  <select
+                    id="lead"
+                    name="lead"
+                    className="h-10 w-full rounded-md border border-slate-200 bg-white px-3 text-sm text-slate-800 shadow-sm outline-none focus:border-indigo-500 focus:ring-4 focus:ring-indigo-100"
+                    value={form.lead}
+                    onChange={(e) => setForm((prev) => ({ ...prev, lead: e.target.value }))}
+                    disabled={isViewMode || leadOptions.length === 0}
+                  >
+                    <option value="">{leadOptions.length ? "Select a lead" : "No project managers available"}</option>
+                    {leadOptions.map((member) => (
+                      <option key={member} value={member}>
+                        {member}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="teamMembers">Team Members</Label>
+                  <div className="space-y-2 rounded-lg border border-slate-200 bg-white p-3">
+                    {/* Selected Members as Tags */}
+                    {form.teamMembers.length > 0 && (
+                      <div className="flex flex-wrap gap-1.5 pb-2">
+                        {form.teamMembers.map((member) => (
+                          <span
                             key={member}
-                            className="flex cursor-pointer items-center gap-2 rounded-md px-2 py-1 text-sm text-slate-800 hover:bg-slate-50"
+                            className="inline-flex items-center gap-1 rounded-full bg-violet-100 px-2.5 py-1 text-xs font-medium text-violet-700"
                           >
-                            <input
-                              type="checkbox"
-                              className="size-4 rounded border-slate-300"
-                              checked={checked}
-                              onChange={(e) => {
-                                const next = e.target.checked
-                                  ? [...form.teamMembers, member]
-                                  : form.teamMembers.filter((m) => m !== member);
-                                setForm((prev) => ({ ...prev, teamMembers: next }));
-                              }}
-                              disabled={isViewMode}
-                            />
-                            <span>{member}</span>
-                          </label>
-                        );
-                      })
+                            {member}
+                            {!isViewMode && (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setForm((prev) => ({
+                                    ...prev,
+                                    teamMembers: prev.teamMembers.filter((m) => m !== member),
+                                  }));
+                                }}
+                                className="ml-0.5 rounded-full p-0.5 hover:bg-violet-200"
+                              >
+                                <svg className="size-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                </svg>
+                              </button>
+                            )}
+                          </span>
+                        ))}
+                      </div>
+                    )}
+                    {/* Dropdown to add members */}
+                    {!isViewMode && (
+                      <select
+                        className="h-9 w-full rounded-md border border-slate-200 bg-white px-3 text-sm text-slate-600 shadow-sm outline-none focus:border-violet-500 focus:ring-2 focus:ring-violet-100"
+                        value=""
+                        onChange={(e) => {
+                          const value = e.target.value;
+                          if (value && !form.teamMembers.includes(value)) {
+                            setForm((prev) => ({
+                              ...prev,
+                              teamMembers: [...prev.teamMembers, value],
+                            }));
+                          }
+                        }}
+                      >
+                        <option value="">+ Add team member...</option>
+                        {teamOptions
+                          .filter((m) => !form.teamMembers.includes(m))
+                          .map((member) => (
+                            <option key={member} value={member}>
+                              {member}
+                            </option>
+                          ))}
+                      </select>
                     )}
                   </div>
                 </div>
               </div>
-            </div>
 
-            <div className="grid gap-3 sm:grid-cols-2">
-              <div className="space-y-2">
-                <Label htmlFor="startDate">Start Date</Label>
-                <Input
-                  id="startDate"
-                  name="startDate"
-                  type="date"
-                  value={form.startDate}
-                  onChange={(e) => setForm((prev) => ({ ...prev, startDate: e.target.value }))}
-                  disabled={isViewMode}
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="endDate">End Date</Label>
-                <Input
-                  id="endDate"
-                  name="endDate"
-                  type="date"
-                  value={form.endDate}
-                  onChange={(e) => setForm((prev) => ({ ...prev, endDate: e.target.value }))}
-                  disabled={isViewMode}
-                />
-              </div>
-            </div>
+              {/* Right Column: Timeline & Planning */}
+              <div className="space-y-4">
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-2">
+                    <Label htmlFor="startDate">Start Date</Label>
+                    <Input
+                      id="startDate"
+                      name="startDate"
+                      type="date"
+                      value={form.startDate}
+                      onChange={(e) =>
+                        setForm((prev) => ({ ...prev, startDate: e.target.value }))
+                      }
+                      disabled={isViewMode}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="deadline">Deadline</Label>
+                    <Input
+                      id="deadline"
+                      name="deadline"
+                      type="date"
+                      value={form.deadline}
+                      onChange={(e) => setForm((prev) => ({ ...prev, deadline: e.target.value }))}
+                      disabled={isViewMode}
+                    />
+                  </div>
+                </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="description">Description</Label>
-              <textarea
-                id="description"
-                name="description"
-                value={form.description}
-                onChange={(e) => setForm((prev) => ({ ...prev, description: e.target.value }))}
-                className="min-h-[90px] w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 shadow-sm outline-none focus:border-indigo-500 focus:ring-4 focus:ring-indigo-100"
-                placeholder="Deskripsi singkat..."
-                disabled={isViewMode}
-              />
+                <div className="space-y-3 rounded-lg border border-slate-200 bg-slate-50 p-4">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm font-semibold text-slate-800">Stage Planning</p>
+                      <p className="text-xs text-slate-500">Set deadlines per stage</p>
+                    </div>
+                  </div>
+                  <div className="grid gap-3">
+                    {(Object.keys(stageLabels) as Array<keyof StageDeadlines>).map((stageId) => (
+                      <div key={stageId} className="space-y-1">
+                        <span className="text-xs font-medium text-slate-700">{stageLabels[stageId]}</span>
+                        <Input
+                          type="date"
+                          value={form.stageDeadlines[stageId]}
+                          onChange={(e) =>
+                            setForm((prev) => ({
+                              ...prev,
+                              stageDeadlines: { ...prev.stageDeadlines, [stageId]: e.target.value },
+                            }))
+                          }
+                          className="h-9 w-full text-sm"
+                          disabled={isViewMode}
+                        />
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
             </div>
 
             <div className="flex items-center justify-end gap-3 pt-2">
@@ -761,6 +797,41 @@ export function ProjectsClient({
             </div>
             {error ? <p className="text-sm text-red-600">{error}</p> : null}
           </form>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={!!projectToDelete} onOpenChange={(open) => !open && setProjectToDelete(null)}>
+        <DialogContent className="max-w-md p-6">
+          <DialogHeader>
+            <DialogTitle className="text-lg font-semibold text-slate-900">
+              Delete Project?
+            </DialogTitle>
+            <DialogDescription className="mt-2 text-sm text-slate-600">
+              Are you sure you want to delete <span className="font-semibold text-slate-900">{projectToDelete?.name}</span>? This action cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
+
+          <DialogFooter className="mt-4 flex flex-col-reverse sm:flex-row sm:justify-end sm:gap-2">
+            <Button
+              variant="outline"
+              onClick={() => setProjectToDelete(null)}
+              disabled={!!deletingId}
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={() => {
+                if (projectToDelete) {
+                  confirmDelete(projectToDelete.id, projectToDelete.code);
+                }
+              }}
+              disabled={!!deletingId}
+            >
+              {deletingId ? <Loader2 className="mr-2 size-4 animate-spin" /> : null}
+              Delete
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>

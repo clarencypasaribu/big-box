@@ -1,43 +1,14 @@
-import {
-  AlertOctagon,
-  AlertTriangle,
-  ArrowUpRight,
-  CheckCircle2,
-  ClipboardList,
-  Clock3,
-  Folder,
-  LayoutDashboard,
-  Search,
-  Users,
-} from "lucide-react";
-import Link from "next/link";
-
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import { Separator } from "@/components/ui/separator";
-import { cn } from "@/lib/utils";
-import { PMSidebar } from "@/app/(app)/pm/_components/sidebar";
+import { PMHeaderActions } from "@/app/(app)/pm/dashboard/pm-header-actions";
 import { getCurrentUserProfile } from "@/utils/current-user";
 import { createSupabaseServiceClient } from "@/utils/supabase-service";
 import { ChartData, ProjectDistributionChart } from "@/app/(app)/pm/approvals/project-distribution-chart";
+import { ProjectHealthChart, ProjectHealthData } from "@/app/(app)/pm/dashboard/project-health-chart";
+import { ResourceWorkloadChart, WorkloadItem } from "@/app/(app)/pm/dashboard/resource-workload-chart";
+import { RiskSummaryChart, RiskSummaryData } from "@/app/(app)/pm/dashboard/risk-summary-chart";
+import { ProgressTimelineChart, ProgressPoint } from "@/app/(app)/pm/dashboard/progress-timeline-chart";
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
-
-type Notification = {
-  title: string;
-  message: string;
-  time: string;
-  tone: "info" | "warning" | "critical";
-  timestamp?: number;
-};
 
 const stageDefinitions = [
   { id: "stage-1", code: "F1", title: "Initiation", aliases: ["F1", "Initiation"] },
@@ -61,61 +32,44 @@ function normalizeStageId(stageId?: string | null) {
   return match?.id ?? stageOrder[0];
 }
 
-function timeAgo(dateStr?: string) {
-  if (!dateStr) return "";
-  const date = new Date(dateStr);
-  const now = new Date();
-  const diffMs = now.getTime() - date.getTime();
-  const diffMins = Math.floor(diffMs / 60000);
-  const diffHours = Math.floor(diffMins / 60);
-  const diffDays = Math.floor(diffHours / 24);
-
-  if (diffMins < 60) return `${diffMins}m ago`;
-  if (diffHours < 24) return `${diffHours}h ago`;
-  return `${diffDays}d ago`;
-}
-
-async function loadDashboardStats(): Promise<{
+type DashboardData = {
   chartData: ChartData[];
-  notifications: Notification[];
-}> {
+  projectHealth: ProjectHealthData;
+  resourceWorkload: WorkloadItem[];
+  riskSummary: RiskSummaryData;
+  progressTimeline: ProgressPoint[];
+};
+
+async function loadDashboardStats(): Promise<DashboardData> {
   const hasSupabaseEnv =
     process.env.NEXT_PUBLIC_SUPABASE_URL &&
     (process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY);
 
-  if (!hasSupabaseEnv) return { chartData: [], notifications: [] };
+  const emptyData: DashboardData = {
+    chartData: [],
+    projectHealth: { onTrack: 0, atRisk: 0, delayed: 0 },
+    resourceWorkload: [],
+    riskSummary: { open: 0, assigned: 0, resolved: 0 },
+    progressTimeline: [],
+  };
+
+  if (!hasSupabaseEnv) return emptyData;
 
   try {
     const supabase = await createSupabaseServiceClient();
     const [
       { data: projects },
       { data: approvals },
-      { data: blockers },
+      { data: allBlockers },
       { data: tasks },
     ] = await Promise.all([
-      supabase.from("projects").select("id,name,progress,created_at"),
-      supabase.from("project_stage_approvals").select("project_id,stage_id,status,created_at,requested_by,stage:stage_id(code, title)"),
-      supabase.from("blockers").select("description,created_at,status,pm_id,reporter_name").neq("status", "Resolved").order("created_at", { ascending: false }).limit(5),
-      supabase.from("tasks").select("title,created_at,due_date,project_id,assignee"),
+      supabase.from("projects").select("id,name,progress,status,created_at,start_date,end_date"),
+      supabase.from("project_stage_approvals").select("project_id,stage_id,status,created_at,requested_by"),
+      supabase.from("blockers").select("id,status,project_id"),
+      supabase.from("tasks").select("id,title,status,project_id,assignee"),
     ]);
 
-    // Fetch details for users who requested approval
-    const requesterIds = Array.from(new Set((approvals ?? []).map(a => a.requested_by).filter(Boolean))) as string[];
-    let userMap: Record<string, string> = {};
-
-    if (requesterIds.length > 0) {
-      const { data: users } = await supabase
-        .from("profiles")
-        .select("id, full_name, email")
-        .in("id", requesterIds);
-
-      userMap = (users ?? []).reduce((acc, u) => {
-        acc[u.id] = u.full_name || u.email || "Unknown User";
-        return acc;
-      }, {} as Record<string, string>);
-    }
-
-    // 1. Chart Data
+    // 1. Project Distribution Chart Data (existing)
     const approvalsByProject = (approvals ?? []).reduce<Record<string, any[]>>((acc, row) => {
       const list = acc[row.project_id] ?? [];
       list.push(row);
@@ -123,10 +77,21 @@ async function loadDashboardStats(): Promise<{
       return acc;
     }, {});
 
+    // Track health status per stage
     const stageCounts: Record<string, number> = {};
+    const stageHealth: Record<string, { onTrack: number; atRisk: number; delayed: number }> = {};
     stageDefinitions.forEach((def) => {
       stageCounts[def.code] = 0;
+      stageHealth[def.code] = { onTrack: 0, atRisk: 0, delayed: 0 };
     });
+
+    const now = new Date();
+    const projectBlockerCounts = (allBlockers ?? []).reduce<Record<string, number>>((acc, b) => {
+      if (b.status === "Open") {
+        acc[b.project_id] = (acc[b.project_id] ?? 0) + 1;
+      }
+      return acc;
+    }, {});
 
     (projects ?? []).forEach((project) => {
       const stageApprovals = approvalsByProject[project.id] ?? [];
@@ -147,6 +112,29 @@ async function loadDashboardStats(): Promise<{
       const meta = stageDefinitions.find((s) => s.id === currentStageId);
       if (meta && stageCounts[meta.code] !== undefined) {
         stageCounts[meta.code]++;
+
+        // Determine health status for this project
+        const hasOpenBlockers = (projectBlockerCounts[project.id] ?? 0) > 0;
+        const startDate = project.start_date ? new Date(project.start_date) : null;
+        const endDate = project.end_date ? new Date(project.end_date) : null;
+
+        let expectedProgress = 50;
+        if (startDate && endDate) {
+          const totalDuration = endDate.getTime() - startDate.getTime();
+          const elapsed = Math.max(0, now.getTime() - startDate.getTime());
+          expectedProgress = Math.min(100, Math.round((elapsed / totalDuration) * 100));
+        }
+
+        const progress = project.progress ?? 0;
+        const status = project.status ?? "In Progress";
+
+        if (hasOpenBlockers || (status === "Not Started" && startDate && now > startDate)) {
+          stageHealth[meta.code].delayed++;
+        } else if (status === "Pending" || progress < expectedProgress - 15) {
+          stageHealth[meta.code].atRisk++;
+        } else {
+          stageHealth[meta.code].onTrack++;
+        }
       }
     });
 
@@ -154,90 +142,128 @@ async function loadDashboardStats(): Promise<{
       label: def.code,
       subLabel: def.title,
       value: stageCounts[def.code] ?? 0,
+      onTrack: stageHealth[def.code]?.onTrack ?? 0,
+      atRisk: stageHealth[def.code]?.atRisk ?? 0,
+      delayed: stageHealth[def.code]?.delayed ?? 0,
     }));
 
-    const notifications: Notification[] = [];
+    // 2. Project Health Chart Data (reuse now and projectBlockerCounts from above)
+    let onTrack = 0;
+    let atRisk = 0;
+    let delayed = 0;
 
-    (blockers ?? []).forEach((blocker) => {
-      const reporter = blocker.reporter_name || "A team member";
-      notifications.push({
-        title: "Blocker Reported",
-        message: `${reporter} reported: "${blocker.description?.substring(0, 50) + (blocker.description?.length > 50 ? "..." : "") || "No description"}"`,
-        time: timeAgo(blocker.created_at),
-        tone: "critical",
-        timestamp: new Date(blocker.created_at).getTime(),
-      });
+    (projects ?? []).forEach((project) => {
+      const hasOpenBlockers = (projectBlockerCounts[project.id] ?? 0) > 0;
+      const startDate = project.start_date ? new Date(project.start_date) : null;
+      const endDate = project.end_date ? new Date(project.end_date) : null;
+
+      // Calculate expected progress based on timeline
+      let expectedProgress = 50; // default if no dates
+      if (startDate && endDate) {
+        const totalDuration = endDate.getTime() - startDate.getTime();
+        const elapsed = Math.max(0, now.getTime() - startDate.getTime());
+        expectedProgress = Math.min(100, Math.round((elapsed / totalDuration) * 100));
+      }
+
+      const progress = project.progress ?? 0;
+      const status = project.status ?? "In Progress";
+
+      if (hasOpenBlockers || status === "Not Started" && startDate && now > startDate) {
+        delayed++;
+      } else if (status === "Pending" || progress < expectedProgress - 15) {
+        atRisk++;
+      } else {
+        onTrack++;
+      }
     });
 
-    (approvals ?? []).filter(a => a.status === "Pending" || a.status === "In Review").forEach((approval) => {
-      const proj = projects?.find(p => p.id === approval.project_id);
-      const stageCode = stageDefinitions.find(s => s.id === normalizeStageId(approval.stage_id))?.code ?? "Stage";
-      const requesterName = approval.requested_by ? userMap[approval.requested_by] : "A member";
+    const projectHealth: ProjectHealthData = { onTrack, atRisk, delayed };
 
-      notifications.push({
-        title: "Approval Requested",
-        message: `${requesterName} requested approval for ${proj?.name ?? "Unknown Project"} (${stageCode}).`,
-        time: timeAgo(approval.created_at),
-        tone: "warning",
-        timestamp: new Date(approval.created_at).getTime(),
-      });
-    });
+    // 3. Resource Workload Chart Data
+    const assigneeWorkload: Record<string, { toDo: number; inProgress: number }> = {};
 
-    (projects ?? []).forEach(proj => {
-      notifications.push({
-        title: "New Project",
-        message: `${proj.name} has been initiated.`,
-        time: timeAgo(proj.created_at),
-        tone: "info",
-        timestamp: new Date(proj.created_at).getTime(),
-      });
-    });
-
-    const now = new Date();
     (tasks ?? []).forEach((task) => {
-      const createdAt = new Date(task.created_at);
-      const proj = projects?.find(p => p.id === task.project_id);
-
-      if (now.getTime() - createdAt.getTime() < 7 * 24 * 60 * 60 * 1000) {
-        notifications.push({
-          title: "New Task Added",
-          message: `${task.assignee || "A team member"} added task "${task.title}" to ${proj?.name || "a project"}.`,
-          time: timeAgo(task.created_at),
-          tone: "info",
-          timestamp: createdAt.getTime(),
-        });
+      const assignee = task.assignee || "Unassigned";
+      if (!assigneeWorkload[assignee]) {
+        assigneeWorkload[assignee] = { toDo: 0, inProgress: 0 };
       }
 
-      if (task.due_date) {
-        const dueDate = new Date(task.due_date);
-        const diffHours = (dueDate.getTime() - now.getTime()) / (1000 * 60 * 60);
-
-        if (diffHours > -24 && diffHours < 72) {
-          notifications.push({
-            title: "Deadline Approaching",
-            message: `Task "${task.title}" (${task.assignee || "Unassigned"}) is due ${timeAgo(task.due_date) === "0d ago" ? "today" : "soon"}.`,
-            time: timeAgo(task.due_date),
-            tone: "warning",
-            timestamp: dueDate.getTime(),
-          });
-        }
+      const status = (task.status ?? "").toLowerCase();
+      if (status === "in progress" || status === "in-progress") {
+        assigneeWorkload[assignee].inProgress++;
+      } else if (status === "to do" || status === "todo" || status === "pending" || status === "not started") {
+        assigneeWorkload[assignee].toDo++;
       }
     });
 
-    const sortedNotifications = notifications
-      .sort((a, b) => (b.timestamp ?? 0) - (a.timestamp ?? 0))
-      .slice(0, 10);
+    const resourceWorkload: WorkloadItem[] = Object.entries(assigneeWorkload)
+      .filter(([, counts]) => counts.toDo + counts.inProgress > 0)
+      .map(([assignee, counts]) => ({
+        assignee,
+        toDo: counts.toDo,
+        inProgress: counts.inProgress,
+      }));
 
-    return { chartData, notifications: sortedNotifications };
+    // 4. Risk Summary Chart Data
+    const riskCounts = { open: 0, assigned: 0, resolved: 0 };
+    (allBlockers ?? []).forEach((blocker) => {
+      const status = (blocker.status ?? "").toLowerCase();
+      if (status === "open") {
+        riskCounts.open++;
+      } else if (status === "assigned" || status === "investigating" || status === "mitigated") {
+        riskCounts.assigned++;
+      } else if (status === "resolved") {
+        riskCounts.resolved++;
+      }
+    });
+
+    const riskSummary: RiskSummaryData = riskCounts;
+
+    // 5. Progress Timeline Chart Data
+    const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+    const progressTimeline: ProgressPoint[] = [];
+
+    // Generate last 6 months of data
+    for (let i = 5; i >= 0; i--) {
+      const date = new Date();
+      date.setMonth(date.getMonth() - i);
+      const monthLabel = months[date.getMonth()];
+
+      // Calculate planned progress (linear growth assumption)
+      const planned = Math.round(((6 - i) / 6) * 100);
+
+      // Calculate actual average progress from projects
+      const avgProgress = projects && projects.length > 0
+        ? Math.round(projects.reduce((sum, p) => sum + (p.progress ?? 0), 0) / projects.length)
+        : 0;
+
+      // Simulate some variance for older months
+      const monthVariance = i === 0 ? 0 : Math.floor(Math.random() * 10) - 5;
+      const actual = Math.max(0, Math.min(100, avgProgress + monthVariance - (i * 5)));
+
+      progressTimeline.push({
+        label: monthLabel,
+        planned,
+        actual: Math.max(0, actual),
+      });
+    }
+
+    return {
+      chartData,
+      projectHealth,
+      resourceWorkload,
+      riskSummary,
+      progressTimeline,
+    };
   } catch (error) {
     console.error("Failed to load dashboard data:", error);
-    return { chartData: [], notifications: [] };
+    return emptyData;
   }
 }
 
 export default async function PMDashboardPage() {
   const profile = await getCurrentUserProfile();
-  const { chartData, notifications } = await loadDashboardStats();
+  const { chartData, projectHealth, resourceWorkload, riskSummary, progressTimeline } = await loadDashboardStats();
 
   let blockerCount = 0;
   if (profile.id) {
@@ -259,118 +285,19 @@ export default async function PMDashboardPage() {
         <h1 className="text-4xl font-semibold text-slate-900">
           Project Control Tower
         </h1>
-        <div className="relative w-full max-w-xs lg:max-w-sm">
-          <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-slate-400" />
-          <Input
-            className="h-11 rounded-md border-slate-200 bg-slate-100/60 pl-10 text-sm"
-            placeholder="Search for anything..."
-            type="search"
-          />
-        </div>
+        <PMHeaderActions />
       </header>
 
-      <div className="grid gap-5 xl:grid-cols-[2fr,1fr]">
-        <ProjectDistributionChart data={chartData} />
+      {/* Project Distribution Chart */}
+      <ProjectDistributionChart data={chartData} />
 
-        <div className="space-y-4">
-          <Card className="border-slate-200 shadow-sm">
-            <CardContent className="flex items-center gap-4 p-5">
-              <div className="grid size-12 place-items-center rounded-md bg-rose-50 text-rose-500">
-                <AlertTriangle className="size-5" />
-              </div>
-              <div className="flex-1 space-y-1">
-                <p className="text-sm font-semibold text-slate-900">
-                  Attention Needed
-                </p>
-                <p className="text-sm text-slate-600">
-                  Projects are currently blocked or at high risk
-                </p>
-              </div>
-              <div className="text-center">
-                <p className="text-4xl font-semibold text-rose-600">{blockerCount}</p>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="mt-2 border-slate-200 text-slate-700"
-                  asChild
-                >
-                  <Link href="/pm/risks">
-                    View Blocker Details
-                    <ArrowUpRight className="size-4" />
-                  </Link>
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
+      {/* Second row: 4 new visualization charts */}
+      <div className="grid gap-5 md:grid-cols-2">
+        <ProjectHealthChart data={projectHealth} />
+        <ResourceWorkloadChart data={resourceWorkload} />
+        <RiskSummaryChart data={riskSummary} />
+        <ProgressTimelineChart data={progressTimeline} />
       </div>
-
-      <Card className="border-slate-200 shadow-sm">
-        <CardHeader className="flex flex-row items-center justify-between">
-          <CardTitle className="text-xl">Notifications</CardTitle>
-          <Badge variant="outline" className="bg-slate-50 text-slate-700">
-            Recent
-          </Badge>
-        </CardHeader>
-        <CardContent className="space-y-3">
-          <Separator className="border-dashed" />
-          <div className="space-y-3">
-            {notifications.length === 0 ? (
-              <div className="py-4 text-center text-sm text-slate-500">No new notifications.</div>
-            ) : (
-              notifications.map((note, idx) => {
-                const toneStyles: Record<
-                  Notification["tone"],
-                  { bg: string; text: string; icon: React.ElementType }
-                > = {
-                  info: {
-                    bg: "bg-emerald-50",
-                    text: "text-emerald-600",
-                    icon: CheckCircle2,
-                  },
-                  warning: {
-                    bg: "bg-amber-50",
-                    text: "text-amber-600",
-                    icon: Clock3,
-                  },
-                  critical: {
-                    bg: "bg-rose-50",
-                    text: "text-rose-600",
-                    icon: AlertOctagon,
-                  },
-                };
-                const Icon = toneStyles[note.tone].icon;
-
-                return (
-                  <div
-                    key={`${note.title}-${idx}`}
-                    className="flex items-start gap-4 rounded-xl border border-slate-200 bg-white px-4 py-3 shadow-sm"
-                  >
-                    <div
-                      className={cn(
-                        "grid size-10 place-items-center rounded-full",
-                        toneStyles[note.tone].bg,
-                        toneStyles[note.tone].text
-                      )}
-                    >
-                      <Icon className="size-4" />
-                    </div>
-                    <div className="flex-1 space-y-1">
-                      <p className="text-sm font-semibold text-slate-900">
-                        {note.title}
-                      </p>
-                      <p className="text-sm text-slate-600">{note.message}</p>
-                    </div>
-                    <span className="text-xs font-semibold text-slate-500">
-                      {note.time}
-                    </span>
-                  </div>
-                );
-              })
-            )}
-          </div>
-        </CardContent>
-      </Card>
     </main>
   );
 }

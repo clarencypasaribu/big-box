@@ -47,7 +47,7 @@ export async function GET(request: Request) {
     const supabase = await createSupabaseServiceClient({ allowWrite: true });
     const { data, error } = await supabase
       .from("project_stage_approvals")
-      .select("id,project_id,stage_id,status,requested_by,approved_by,created_at,approved_at")
+      .select("id,project_id,stage_id,status,requested_by,approved_by,created_at,approved_at,comment")
       .eq("project_id", projectId);
 
     if (error) {

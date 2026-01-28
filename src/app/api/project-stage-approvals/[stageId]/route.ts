@@ -82,6 +82,8 @@ export async function PATCH(
     }
 
     // --- Notification Logic ---
+    const comment = body.comment ? String(body.comment).trim() : null;
+
     if (status === "Approved" && payload.requested_by) {
       // Notify the requester
       await supabase.from("notifications").insert({
@@ -95,7 +97,7 @@ export async function PATCH(
       await supabase.from("notifications").insert({
         user_id: payload.requested_by,
         title: "Stage Approval Rejected",
-        message: `Your stage approval request for project has been REJECTED.`,
+        message: `Your stage approval request for project has been REJECTED.${comment ? ` Reason: "${comment}"` : ""}`,
         type: "STAGE_REJECTED",
         link: `/projects/${projectId}?tab=approvals`
       });

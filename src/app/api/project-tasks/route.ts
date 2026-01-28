@@ -14,7 +14,7 @@ export async function GET(request: Request) {
     const supabase = await createSupabaseServiceClient({ allowWrite: true });
     const { data: tasks, error } = await supabase
       .from("tasks")
-      .select("id,title,description,priority,stage,status,due_date,project_id,created_at")
+      .select("id,title,description,priority,stage,status,due_date,project_id,created_at,assignee")
       .eq("project_id", projectId)
       .order("created_at", { ascending: true });
 
@@ -91,7 +91,8 @@ export async function POST(request: Request) {
       description: body.description ? String(body.description) : null,
       priority: body.priority ? String(body.priority) : null,
       due_date: body.dueDate ? String(body.dueDate) : null,
-      status: "In Progress",
+      assignee: body.assignee ? String(body.assignee) : null,
+      status: "Not Started",
     };
 
     const supabase = await createSupabaseServiceClient({ allowWrite: true });
