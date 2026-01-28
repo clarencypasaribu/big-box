@@ -40,6 +40,7 @@ export type ProjectRow = {
   location: string;
   status: "In Progress" | "Completed" | "Not Started" | "Pending";
   progress: number;
+  stageLabel?: string;
   lead: string;
   updated?: string | null;
   description?: string | null;
@@ -490,17 +491,18 @@ export function ProjectsClient({
         </div>
       </div>
       <Table>
-        <TableHeader className="bg-slate-50 text-xs font-semibold uppercase tracking-wide text-slate-500">
-          <TableRow className="hover:bg-slate-50">
-            <TableHead>Project</TableHead>
-            <TableHead>Location</TableHead>
-            <TableHead>Status</TableHead>
-            <TableHead>Progress</TableHead>
-            <TableHead>Lead</TableHead>
-            <TableHead>Updated</TableHead>
-            <TableHead className="text-center">Actions</TableHead>
-          </TableRow>
-        </TableHeader>
+      <TableHeader className="bg-slate-50 text-xs font-semibold uppercase tracking-wide text-slate-500">
+        <TableRow className="hover:bg-slate-50">
+          <TableHead>Project</TableHead>
+          <TableHead>Location</TableHead>
+          <TableHead>Status</TableHead>
+          <TableHead>Progress</TableHead>
+          <TableHead>Stage</TableHead>
+          <TableHead>Lead</TableHead>
+          <TableHead>Updated</TableHead>
+          <TableHead className="text-center">Actions</TableHead>
+        </TableRow>
+      </TableHeader>
         <TableBody className="text-sm text-slate-800">
           {loading ? (
             <TableRow>
@@ -535,6 +537,9 @@ export function ProjectsClient({
                       {Math.round(project.progress)}%
                     </span>
                   </div>
+                </TableCell>
+                <TableCell className="text-slate-700">
+                  {project.stageLabel ?? "—"}
                 </TableCell>
                 <TableCell className="font-medium text-slate-800">
                   {project.lead || "Unassigned"}

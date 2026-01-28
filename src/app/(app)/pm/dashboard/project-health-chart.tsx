@@ -1,5 +1,6 @@
 "use client";
 
+import { useMemo, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
 export type ProjectHealthData = {
@@ -31,20 +32,43 @@ export function ProjectHealthChart({ data }: { data: ProjectHealthData }) {
         );
     }
 
-    const onTrackPercent = (data.onTrack / total) * 100;
-    const atRiskPercent = (data.atRisk / total) * 100;
-    const delayedPercent = (data.delayed / total) * 100;
+    const segments = useMemo(() => {
+        return [
+            {
+                label: "On Track",
+                value: data.onTrack,
+                percent: (data.onTrack / total) * 100,
+                colorStart: "#34d399",
+                colorEnd: "#10b981",
+                bg: "bg-emerald-500",
+            },
+            {
+                label: "At Risk",
+                value: data.atRisk,
+                percent: (data.atRisk / total) * 100,
+                colorStart: "#fbbf24",
+                colorEnd: "#f59e0b",
+                bg: "bg-amber-500",
+            },
+            {
+                label: "Delayed",
+                value: data.delayed,
+                percent: (data.delayed / total) * 100,
+                colorStart: "#fb7185",
+                colorEnd: "#ef4444",
+                bg: "bg-rose-500",
+            },
+        ];
+    }, [data, total]);
+
+    const [hoverIdx, setHoverIdx] = useState<number | null>(null);
 
     const circumference = 251.3;
-    const onTrackDash = (onTrackPercent / 100) * circumference;
-    const atRiskDash = (atRiskPercent / 100) * circumference;
-    const delayedDash = (delayedPercent / 100) * circumference;
-
-    const legendItems = [
-        { label: "On Track", value: data.onTrack, color: "from-emerald-400 to-emerald-500", bg: "bg-emerald-500", percent: onTrackPercent },
-        { label: "At Risk", value: data.atRisk, color: "from-amber-400 to-amber-500", bg: "bg-amber-500", percent: atRiskPercent },
-        { label: "Delayed", value: data.delayed, color: "from-rose-400 to-rose-500", bg: "bg-rose-500", percent: delayedPercent },
-    ];
+    let offsetAcc = 0;
+    const firstNonZeroIdx = useMemo(
+        () => segments.findIndex((seg) => seg.value > 0),
+        [segments]
+    );
 
     return (
         <Card className="border-slate-200/60 bg-gradient-to-br from-white to-slate-50/50 shadow-lg transition-shadow hover:shadow-xl">
@@ -57,7 +81,18 @@ export function ProjectHealthChart({ data }: { data: ProjectHealthData }) {
                 <div className="flex items-center justify-between gap-8">
                     {/* Donut Chart */}
                     <div className="relative">
-                        <svg width="160" height="160" viewBox="0 0 100 100" className="drop-shadow-md">
+                        <svg
+                            width="180"
+                            height="180"
+                            viewBox="0 0 100 100"
+                            className="drop-shadow-md"
+                            onMouseLeave={() => setHoverIdx(null)}
+                            onMouseEnter={() => {
+                                if (hoverIdx === null) {
+                                    setHoverIdx(firstNonZeroIdx !== -1 ? firstNonZeroIdx : 0);
+                                }
+                            }}
+                        >
                             {/* Background circle */}
                             <circle
                                 cx="50"
@@ -69,64 +104,36 @@ export function ProjectHealthChart({ data }: { data: ProjectHealthData }) {
                             />
                             {/* Segments */}
                             <g className="transform -rotate-90 origin-center">
-                                {data.onTrack > 0 && (
-                                    <circle
-                                        cx="50"
-                                        cy="50"
-                                        r="40"
-                                        fill="transparent"
-                                        stroke="url(#gradientGreen)"
-                                        strokeWidth="12"
-                                        strokeDasharray={`${onTrackDash} ${circumference}`}
-                                        strokeDashoffset="0"
-                                        strokeLinecap="round"
-                                        className="transition-all duration-700 ease-out"
-                                    />
-                                )}
-                                {data.atRisk > 0 && (
-                                    <circle
-                                        cx="50"
-                                        cy="50"
-                                        r="40"
-                                        fill="transparent"
-                                        stroke="url(#gradientAmber)"
-                                        strokeWidth="12"
-                                        strokeDasharray={`${atRiskDash} ${circumference}`}
-                                        strokeDashoffset={-onTrackDash}
-                                        strokeLinecap="round"
-                                        className="transition-all duration-700 ease-out"
-                                    />
-                                )}
-                                {data.delayed > 0 && (
-                                    <circle
-                                        cx="50"
-                                        cy="50"
-                                        r="40"
-                                        fill="transparent"
-                                        stroke="url(#gradientRose)"
-                                        strokeWidth="12"
-                                        strokeDasharray={`${delayedDash} ${circumference}`}
-                                        strokeDashoffset={-(onTrackDash + atRiskDash)}
-                                        strokeLinecap="round"
-                                        className="transition-all duration-700 ease-out"
-                                    />
-                                )}
+                                {segments.map((seg, idx) => {
+                                    const dash = (seg.percent / 100) * circumference;
+                                    const dashOffset = -offsetAcc;
+                                    offsetAcc += dash;
+                                    const gradId = `grad-${idx}`;
+                                    return (
+                                        <g key={seg.label}>
+                                            <defs>
+                                                <linearGradient id={gradId} x1="0%" y1="0%" x2="100%" y2="100%">
+                                                    <stop offset="0%" stopColor={seg.colorStart} />
+                                                    <stop offset="100%" stopColor={seg.colorEnd} />
+                                                </linearGradient>
+                                            </defs>
+                                            <circle
+                                                cx="50"
+                                                cy="50"
+                                                r="40"
+                                                fill="transparent"
+                                                stroke={`url(#${gradId})`}
+                                                strokeWidth="12"
+                                                strokeDasharray={`${dash} ${circumference}`}
+                                                strokeDashoffset={dashOffset}
+                                                strokeLinecap="round"
+                                                className="transition-all duration-700 ease-out cursor-pointer"
+                                                onMouseEnter={() => setHoverIdx(idx)}
+                                            />
+                                        </g>
+                                    );
+                                })}
                             </g>
-                            {/* Gradient definitions */}
-                            <defs>
-                                <linearGradient id="gradientGreen" x1="0%" y1="0%" x2="100%" y2="100%">
-                                    <stop offset="0%" stopColor="#34d399" />
-                                    <stop offset="100%" stopColor="#10b981" />
-                                </linearGradient>
-                                <linearGradient id="gradientAmber" x1="0%" y1="0%" x2="100%" y2="100%">
-                                    <stop offset="0%" stopColor="#fbbf24" />
-                                    <stop offset="100%" stopColor="#f59e0b" />
-                                </linearGradient>
-                                <linearGradient id="gradientRose" x1="0%" y1="0%" x2="100%" y2="100%">
-                                    <stop offset="0%" stopColor="#fb7185" />
-                                    <stop offset="100%" stopColor="#ef4444" />
-                                </linearGradient>
-                            </defs>
                         </svg>
                         {/* Center content */}
                         <div className="absolute inset-0 flex flex-col items-center justify-center">
@@ -135,13 +142,32 @@ export function ProjectHealthChart({ data }: { data: ProjectHealthData }) {
                             </span>
                             <span className="text-xs font-medium text-slate-500">Projects</span>
                         </div>
+
+                        {/* Tooltip */}
+                        {hoverIdx !== null && segments[hoverIdx] && (
+                            <div className="absolute -right-4 top-1/2 w-44 -translate-y-1/2 rounded-xl border border-slate-200 bg-white p-3 text-sm shadow-lg">
+                                <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                                    {segments[hoverIdx].label}
+                                </p>
+                                <p className="text-lg font-bold text-slate-900">
+                                    {segments[hoverIdx].value} <span className="text-xs font-medium text-slate-500">({segments[hoverIdx].percent.toFixed(1)}%)</span>
+                                </p>
+                            </div>
+                        )}
                     </div>
 
                     {/* Legend */}
                     <div className="flex flex-col gap-4">
-                        {legendItems.map((item) => (
-                            <div key={item.label} className="group flex items-center gap-3 cursor-default">
-                                <div className={`size-3.5 rounded-full ${item.bg} shadow-sm ring-2 ring-white`} />
+                        {segments.map((item, idx) => (
+                            <div key={item.label} className="group flex items-center gap-3">
+                                <div
+                                    className={`size-3.5 rounded-full ${item.bg} shadow-sm ring-2 ring-white cursor-pointer`}
+                                    onMouseEnter={() => setHoverIdx(idx)}
+                                    onFocus={() => setHoverIdx(idx)}
+                                    role="button"
+                                    tabIndex={0}
+                                    aria-label={`${item.label} ${item.value} (${item.percent.toFixed(0)}%)`}
+                                />
                                 <div className="flex flex-col">
                                     <span className="text-sm font-semibold text-slate-700 group-hover:text-slate-900 transition-colors">
                                         {item.label}

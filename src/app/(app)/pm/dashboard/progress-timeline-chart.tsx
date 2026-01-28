@@ -1,14 +1,18 @@
 "use client";
 
+import { useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
 export type ProgressPoint = {
     label: string;
     planned: number;
     actual: number;
+    projectCount?: number;
 };
 
 export function ProgressTimelineChart({ data }: { data: ProgressPoint[] }) {
+    const [hovered, setHovered] = useState<number | null>(null);
+
     if (data.length === 0) {
         return (
             <Card className="border-slate-200/60 bg-gradient-to-br from-white to-slate-50/50 shadow-lg">
@@ -144,7 +148,12 @@ export function ProgressTimelineChart({ data }: { data: ProgressPoint[] }) {
 
                     {/* Data points on actual line */}
                     {actualPoints.map((point, i) => (
-                        <g key={i} className="group">
+                        <g
+                            key={i}
+                            className="group"
+                            onMouseEnter={() => setHovered(i)}
+                            onMouseLeave={() => setHovered(null)}
+                        >
                             <circle
                                 cx={point.x}
                                 cy={point.y}
@@ -177,6 +186,19 @@ export function ProgressTimelineChart({ data }: { data: ProgressPoint[] }) {
                         </text>
                     ))}
                 </svg>
+
+                <div className="mt-3 text-center text-xs font-semibold text-slate-600">
+                    {hovered !== null ? (
+                        <>
+                            {data[hovered].label}: {data[hovered].actual}% actual • {data[hovered].planned}% planned
+                            {typeof data[hovered].projectCount === "number"
+                                ? ` • ${data[hovered].projectCount} project${data[hovered].projectCount === 1 ? "" : "s"}`
+                                : ""}
+                        </>
+                    ) : (
+                        "Hover a point to see project count per month"
+                    )}
+                </div>
 
                 {/* Legend */}
                 <div className="mt-4 flex items-center justify-center gap-8 border-t border-slate-100 pt-4">

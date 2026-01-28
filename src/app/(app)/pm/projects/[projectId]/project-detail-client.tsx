@@ -137,6 +137,7 @@ export function ProjectDetailClient({ projectId }: ProjectDetailClientProps) {
         startDate: data.start_date ?? null,
         endDate: data.end_date ?? null,
         teamMembers: data.team_members ?? [],
+        stageDeadlines: data.stage_deadlines ?? null,
       });
     },
     [resolvedId]
@@ -158,7 +159,7 @@ export function ProjectDetailClient({ projectId }: ProjectDetailClientProps) {
       const normalizedTasks: StageTask[] = (tasksBody.data ?? []).map((task: any) => ({
         id: task.id,
         title: task.title ?? "Untitled Task",
-        assignee: task.assignee ?? "",
+        assignee: task.assignee ?? task.created_by ?? "",
         due: task.due_date ?? "",
         status: task.status ?? "Not Started",
         done: task.status === "Done" || task.status === "Completed",
@@ -244,6 +245,28 @@ export function ProjectDetailClient({ projectId }: ProjectDetailClientProps) {
   }));
   // Stage untuk timeline/approval (tampilkan 5 stage lengkap).
   const timelineStages = tasksByStageAll;
+  const stageStats = tasksByStageAll.reduce<Record<string, { total: number; done: number; deadline?: string | null }>>(
+    (acc, stage) => {
+      const total = stage.tasks.length;
+      const done = stage.tasks.filter((t) => t.done).length;
+      const deadlines = stage.tasks
+        .map((t) => t.due)
+        .filter((d) => d && String(d).trim());
+      const earliest =
+        deadlines.length > 0
+          ? deadlines.reduce((min, curr) => {
+            const m = new Date(min as string);
+            const c = new Date(curr as string);
+            if (Number.isNaN(m.getTime())) return curr;
+            if (Number.isNaN(c.getTime())) return min;
+            return c < m ? curr : min;
+          })
+          : null;
+      acc[stage.id] = { total, done, deadline: earliest };
+      return acc;
+    },
+    {}
+  );
   function getDaysLeft(dateStr?: string | null) {
     if (!dateStr) return "No deadline";
     const target = new Date(dateStr);
@@ -729,7 +752,7 @@ export function ProjectDetailClient({ projectId }: ProjectDetailClientProps) {
                         <div className="flex items-center gap-2">
                           <p className="text-sm font-semibold text-slate-900">{stage.label}</p>
                           <Badge className="rounded-full bg-slate-100 text-slate-700 hover:bg-slate-200">
-                            {stage.tasks.length}
+                            {stageStats[stageId]?.done ?? 0}/{stageStats[stageId]?.total ?? 0}
                           </Badge>
                         </div>
                         {stageDeadline && (

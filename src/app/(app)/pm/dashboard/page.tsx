@@ -6,6 +6,7 @@ import { ProjectHealthChart, ProjectHealthData } from "@/app/(app)/pm/dashboard/
 import { ResourceWorkloadChart, WorkloadItem } from "@/app/(app)/pm/dashboard/resource-workload-chart";
 import { RiskSummaryChart, RiskSummaryData } from "@/app/(app)/pm/dashboard/risk-summary-chart";
 import { ProgressTimelineChart, ProgressPoint } from "@/app/(app)/pm/dashboard/progress-timeline-chart";
+import Link from "next/link";
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -38,6 +39,16 @@ type DashboardData = {
   resourceWorkload: WorkloadItem[];
   riskSummary: RiskSummaryData;
   progressTimeline: ProgressPoint[];
+  projectTable: {
+    id: string;
+    name: string;
+    code: string;
+    status: string;
+    progress: number;
+    stage: string;
+    blockers: number;
+    updatedAt: string;
+  }[];
 };
 
 async function loadDashboardStats(): Promise<DashboardData> {
@@ -51,6 +62,7 @@ async function loadDashboardStats(): Promise<DashboardData> {
     resourceWorkload: [],
     riskSummary: { open: 0, assigned: 0, resolved: 0 },
     progressTimeline: [],
+    projectTable: [],
   };
 
   if (!hasSupabaseEnv) return emptyData;
@@ -138,6 +150,44 @@ async function loadDashboardStats(): Promise<DashboardData> {
       }
     });
 
+    const projectTable = (projects ?? [])
+      .map((project) => {
+        const stageApprovals = approvalsByProject[project.id] ?? [];
+        const approvalsMap = new Map<string, string>();
+        stageApprovals.forEach((row) => approvalsMap.set(normalizeStageId(row.stage_id), row.status ?? "Pending"));
+        let currentStageId = stageOrder[0];
+        for (const stage of stageOrder) {
+          const status = approvalsMap.get(stage);
+          if (status === "Approved") continue;
+          currentStageId = stage;
+          break;
+        }
+        const stageMeta = stageDefinitions.find((s) => s.id === currentStageId);
+        let maxApprovedIndex = -1;
+        stageOrder.forEach((stage, idx) => {
+          if ((approvalsMap.get(stage) ?? "").toLowerCase() === "approved") {
+            maxApprovedIndex = Math.max(maxApprovedIndex, idx);
+          }
+        });
+        const progress =
+          maxApprovedIndex >= 0
+            ? Math.min(100, Math.round(((maxApprovedIndex + 1) / stageOrder.length) * 100))
+            : 0;
+
+        return {
+          id: project.id,
+          name: project.name ?? "Untitled",
+          code: project.code ?? project.id,
+          status: project.status ?? "In Progress",
+          progress,
+          stage: stageMeta ? `${stageMeta.code} - ${stageMeta.title}` : "F1 - Initiation",
+          blockers: projectBlockerCounts[project.id] ?? 0,
+          updatedAt: project.updated_at ?? project.created_at ?? new Date().toISOString(),
+        };
+      })
+      .sort((a, b) => b.blockers - a.blockers || b.progress - a.progress)
+      .slice(0, 5);
+
     const chartData = stageDefinitions.map((def) => ({
       label: def.code,
       subLabel: def.title,
@@ -222,29 +272,44 @@ async function loadDashboardStats(): Promise<DashboardData> {
     // 5. Progress Timeline Chart Data
     const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
     const progressTimeline: ProgressPoint[] = [];
+    const avgProgress =
+      projects && projects.length > 0
+        ? Math.round(projects.reduce((sum, p) => sum + (p.progress ?? 0), 0) / projects.length)
+        : 0;
+    const totalOpenBlockers = Object.values(projectBlockerCounts).reduce((sum, val) => sum + (val ?? 0), 0);
+    const blockerPenalty = Math.min(20, totalOpenBlockers * 2); // reduce expected trend if many blockers
+    const projectsByMonth = (projects ?? []).reduce<Record<string, number>>((acc, p: any) => {
+      const date = p.created_at ? new Date(p.created_at) : null;
+      if (!date || Number.isNaN(date.getTime())) return acc;
+      const key = `${date.getFullYear()}-${date.getMonth()}`;
+      acc[key] = (acc[key] ?? 0) + 1;
+      return acc;
+    }, {});
 
     // Generate last 6 months of data
     for (let i = 5; i >= 0; i--) {
       const date = new Date();
       date.setMonth(date.getMonth() - i);
       const monthLabel = months[date.getMonth()];
+      const monthKey = `${date.getFullYear()}-${date.getMonth()}`;
+      const projectCount = projectsByMonth[monthKey] ?? 0;
 
-      // Calculate planned progress (linear growth assumption)
-      const planned = Math.round(((6 - i) / 6) * 100);
+      const progressRatio = (6 - i) / 6; // 1/6 ... 1
+      const planned = Math.round(progressRatio * 100);
 
-      // Calculate actual average progress from projects
-      const avgProgress = projects && projects.length > 0
-        ? Math.round(projects.reduce((sum, p) => sum + (p.progress ?? 0), 0) / projects.length)
-        : 0;
-
-      // Simulate some variance for older months
-      const monthVariance = i === 0 ? 0 : Math.floor(Math.random() * 10) - 5;
-      const actual = Math.max(0, Math.min(100, avgProgress + monthVariance - (i * 5)));
+      // Actual is anchored to current average progress and fades back in time, adjusted for blockers.
+      const target = Math.max(0, Math.min(100, avgProgress - blockerPenalty * 0.25));
+      const historicalFade = 1 - Math.pow(progressRatio, 1.5); // older months lower
+      const actual = Math.max(
+        0,
+        Math.min(100, Math.round(target * progressRatio + target * 0.15 * historicalFade))
+      );
 
       progressTimeline.push({
         label: monthLabel,
         planned,
-        actual: Math.max(0, actual),
+        actual,
+        projectCount,
       });
     }
 
@@ -254,6 +319,7 @@ async function loadDashboardStats(): Promise<DashboardData> {
       resourceWorkload,
       riskSummary,
       progressTimeline,
+      projectTable,
     };
   } catch (error) {
     console.error("Failed to load dashboard data:", error);
@@ -263,7 +329,7 @@ async function loadDashboardStats(): Promise<DashboardData> {
 
 export default async function PMDashboardPage() {
   const profile = await getCurrentUserProfile();
-  const { chartData, projectHealth, resourceWorkload, riskSummary, progressTimeline } = await loadDashboardStats();
+  const { chartData, projectHealth, resourceWorkload, riskSummary, progressTimeline, projectTable } = await loadDashboardStats();
 
   let blockerCount = 0;
   if (profile.id) {
@@ -297,6 +363,84 @@ export default async function PMDashboardPage() {
         <ResourceWorkloadChart data={resourceWorkload} />
         <RiskSummaryChart data={riskSummary} />
         <ProgressTimelineChart data={progressTimeline} />
+      </div>
+
+      <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+        <div className="mb-4 flex items-center justify-between">
+          <div className="space-y-1">
+            <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Key Projects</p>
+            <p className="text-lg font-semibold text-slate-900">Quick view of priority projects</p>
+          </div>
+          <Link
+            href="/pm/projects"
+            className="text-sm font-semibold text-indigo-600 hover:text-indigo-700"
+          >
+            View all projects →
+          </Link>
+        </div>
+        <div className="overflow-x-auto">
+          <table className="min-w-full text-sm text-slate-800">
+            <thead className="bg-slate-50 text-xs uppercase tracking-wide text-slate-500">
+              <tr>
+                <th className="px-4 py-3 text-left">Project</th>
+                <th className="px-4 py-3 text-left">Stage</th>
+                <th className="px-4 py-3 text-left">Status</th>
+                <th className="px-4 py-3 text-left">Progress</th>
+                <th className="px-4 py-3 text-left">Blockers</th>
+                <th className="px-4 py-3 text-left">Updated</th>
+                <th className="px-4 py-3 text-left">Action</th>
+              </tr>
+            </thead>
+            <tbody>
+              {projectTable.length === 0 ? (
+                <tr>
+                  <td colSpan={7} className="px-4 py-5 text-center text-slate-500">
+                    No project data yet.
+                  </td>
+                </tr>
+              ) : (
+                projectTable.map((project) => (
+                  <tr key={project.id} className="border-t border-slate-100 hover:bg-slate-50/60">
+                    <td className="px-4 py-3">
+                      <div className="font-semibold text-slate-900">{project.name}</div>
+                      <div className="text-xs text-slate-500">{project.code}</div>
+                    </td>
+                    <td className="px-4 py-3">{project.stage}</td>
+                    <td className="px-4 py-3">
+                      <span className="rounded-full bg-slate-100 px-2 py-1 text-xs font-semibold text-slate-700">
+                        {project.status}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3">
+                      <div className="flex items-center gap-2">
+                        <div className="h-2 w-24 rounded-full bg-slate-200">
+                          <div
+                            className="h-2 rounded-full bg-indigo-600"
+                            style={{ width: `${Math.min(100, Math.max(0, project.progress))}%` }}
+                          />
+                        </div>
+                        <span className="text-xs font-semibold text-slate-700">{project.progress}%</span>
+                      </div>
+                    </td>
+                    <td className="px-4 py-3">
+                      <span className={`rounded-full px-2 py-1 text-xs font-semibold ${project.blockers > 0 ? "bg-rose-50 text-rose-700" : "bg-emerald-50 text-emerald-700"}`}>
+                        {project.blockers} blocker{project.blockers === 1 ? "" : "s"}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3 text-xs text-slate-500">
+                      {new Date(project.updatedAt).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" })}
+                    </td>
+                    <td className="px-4 py-3">
+                      <Link href={`/pm/projects/${encodeURIComponent(project.id)}`} className="text-sm font-semibold text-indigo-600 hover:text-indigo-700">
+                        View
+                      </Link>
+                    </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
       </div>
     </main>
   );

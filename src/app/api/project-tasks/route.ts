@@ -1,6 +1,33 @@
 import { NextResponse } from "next/server";
 
 import { createSupabaseServiceClient } from "@/utils/supabase-service";
+import { createSupabaseServerClient } from "@/utils/supabase-server";
+
+async function getCurrentUserFromRequest(request: Request) {
+  // Try cookie-based session first
+  try {
+    const server = await createSupabaseServerClient();
+    const { data } = await server.auth.getUser();
+    if (data.user) return data.user;
+  } catch {
+    // ignore
+  }
+
+  // Fallback: Authorization Bearer token
+  const authHeader = request.headers.get("authorization");
+  if (authHeader?.startsWith("Bearer ")) {
+    const token = authHeader.split(" ")[1];
+    try {
+      const admin = await createSupabaseServiceClient({ allowWrite: true });
+      const { data, error } = await admin.auth.getUser(token);
+      if (!error && data.user) return data.user;
+    } catch {
+      // ignore
+    }
+  }
+
+  return null;
+}
 
 export async function GET(request: Request) {
   try {
@@ -12,14 +39,29 @@ export async function GET(request: Request) {
     }
 
     const supabase = await createSupabaseServiceClient({ allowWrite: true });
-    const { data: tasks, error } = await supabase
-      .from("tasks")
-      .select("id,title,description,priority,stage,status,due_date,project_id,created_at,assignee")
-      .eq("project_id", projectId)
-      .order("created_at", { ascending: true });
-
-    if (error) {
-      return NextResponse.json({ message: error.message }, { status: 400 });
+    let tasks: any[] | null = null;
+    try {
+      const { data, error } = await supabase
+        .from("tasks")
+        .select(
+          "id,title,description,priority,stage,status,due_date,project_id,created_at,assignee,created_by"
+        )
+        .eq("project_id", projectId)
+        .order("created_at", { ascending: true });
+      if (error) throw error;
+      tasks = data;
+    } catch (err: any) {
+      // Fallback if column missing or select fails
+      console.warn("[project-tasks] primary select failed, fallback without created_by", err?.message);
+      const { data, error } = await supabase
+        .from("tasks")
+        .select("id,title,description,priority,stage,status,due_date,project_id,created_at,assignee")
+        .eq("project_id", projectId)
+        .order("created_at", { ascending: true });
+      if (error) {
+        return NextResponse.json({ message: error.message }, { status: 400 });
+      }
+      tasks = data ?? [];
     }
 
     if (!tasks || tasks.length === 0) {
@@ -76,12 +118,40 @@ export async function POST(request: Request) {
     const projectId = String(body.projectId ?? "").trim();
     const stageId = String(body.stageId ?? "").trim();
     const title = String(body.title ?? "").trim();
+    const rawAssignee = String(body.assignee ?? "").trim();
 
     if (!projectId || !stageId || !title) {
       return NextResponse.json(
         { message: "Project, stage, and title are required." },
         { status: 400 }
       );
+    }
+
+    // Resolve current user and default assignee
+    let resolvedAssignee: string | null = rawAssignee || null;
+    let createdBy: string | null = null;
+    try {
+      const user = await getCurrentUserFromRequest(request);
+      if (user?.id) {
+        createdBy = user.id;
+        if (!resolvedAssignee) {
+          const supabaseAdmin = await createSupabaseServiceClient({ allowWrite: true });
+          const { data: profile } = await supabaseAdmin
+            .from("profiles")
+            .select("full_name,email")
+            .eq("id", user.id)
+            .maybeSingle();
+          resolvedAssignee =
+            profile?.full_name ||
+            profile?.email ||
+            (typeof user.user_metadata?.full_name === "string" ? user.user_metadata.full_name : null) ||
+            user.email ||
+            user.id ||
+            null;
+        }
+      }
+    } catch {
+      resolvedAssignee = resolvedAssignee ?? null;
     }
 
     const payload = {
@@ -91,7 +161,8 @@ export async function POST(request: Request) {
       description: body.description ? String(body.description) : null,
       priority: body.priority ? String(body.priority) : null,
       due_date: body.dueDate ? String(body.dueDate) : null,
-      assignee: body.assignee ? String(body.assignee) : null,
+      assignee: resolvedAssignee,
+      created_by: createdBy,
       status: "Not Started",
     };
 

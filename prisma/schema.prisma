@@ -150,6 +150,7 @@ model tasks {
   priority      String?
   stage         String?
   due_date      String?
+  created_by    String?
   project_id    String          @db.Uuid
   created_at    DateTime        @default(now()) @db.Timestamptz(6)
   updated_at    DateTime        @default(now()) @db.Timestamptz(6)
