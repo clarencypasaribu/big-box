@@ -93,14 +93,49 @@ export async function PATCH(
         type: "STAGE_APPROVED",
         link: `/projects/${projectId}?tab=approvals`
       });
-    } else if (status === "Rejected" && payload.requested_by) {
-      await supabase.from("notifications").insert({
-        user_id: payload.requested_by,
-        title: "Stage Approval Rejected",
-        message: `Your stage approval request for project has been REJECTED.${comment ? ` Reason: "${comment}"` : ""}`,
-        type: "STAGE_REJECTED",
-        link: `/projects/${projectId}?tab=approvals`
-      });
+
+      // Check if all stages are approved to mark project as Completed
+      const { data: allApprovals } = await supabase
+        .from("project_stage_approvals")
+        .select("stage_id, status")
+        .eq("project_id", projectId);
+
+      const requiredStages = ["stage-1", "stage-2", "stage-3", "stage-4", "stage-5"];
+      const approvedStages = new Set(
+        (allApprovals || [])
+          .filter((a: { status: string; stage_id: string }) => a.status === "Approved")
+          .map((a: { status: string; stage_id: string }) => a.stage_id)
+      );
+
+      const allDone = requiredStages.every((id) => approvedStages.has(id));
+
+      if (allDone) {
+        await supabase
+          .from("projects")
+          .update({ status: "Completed", progress: 100 })
+          .eq("id", projectId);
+      }
+    } else if (status === "Rejected") {
+      // Broadcast rejection to ALL project members (except the PM themselves)
+      const { data: members } = await supabase
+        .from("project_members")
+        .select("member_id")
+        .eq("project_id", projectId);
+
+      const notifications = (members || [])
+        .filter((m: { member_id: string }) => m.member_id !== userId) // Don't notify the rejector
+        .map((m: { member_id: string }) => ({
+          user_id: m.member_id,
+          title: "Stage Approval Rejected",
+          message: `The stage approval request for project has been REJECTED.${comment ? ` Reason: "${comment}"` : ""}`,
+          type: "STAGE_REJECTED",
+          link: `/projects/${projectId}?tab=approvals`, // Ensure link is valid for members
+          created_at: new Date().toISOString() // Explicitly set created_at for immediate visibility
+        }));
+
+      if (notifications.length > 0) {
+        await supabase.from("notifications").insert(notifications);
+      }
     }
     // --------------------------
 

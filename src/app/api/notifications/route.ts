@@ -196,7 +196,7 @@ export async function GET(request: Request) {
             if (projectIds.length > 0) {
                 const { data: tasks } = await supabase
                     .from("tasks")
-                    .select("id, title, due_date, project_id, status, created_at, projects(name)")
+                    .select("id, title, due_date, project_id, status, created_at, created_by, projects(name)")
                     .in("project_id", projectIds)
                     .neq("status", "Done")
                     .neq("status", "Completed");
@@ -206,7 +206,8 @@ export async function GET(request: Request) {
                     const projectName = task.projects?.name || "Unknown";
 
                     // New Assignment
-                    if (task.created_at && task.created_at >= checkWindowStart) {
+                    // Only notify if the task was NOT created by the current user (prevent self-notification)
+                    if (task.created_at && task.created_at >= checkWindowStart && task.created_by !== userId) {
                         queueNotification(
                             "New Task Assigned",
                             `New task "${task.title}" in "${projectName}".`,

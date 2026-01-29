@@ -235,6 +235,39 @@ export function NotificationsClient({
         }));
     }, [displayedNotifications, groupByDate]);
 
+    // Helper to adjust links based on role context
+    function getAdjustedLink(originalLink?: string) {
+        if (!originalLink) return undefined;
+
+        const isMemberContext = !pathname.startsWith("/pm");
+        let link = originalLink;
+
+        if (isMemberContext) {
+            // Rewrite PM-specific links to Member equivalents
+            if (link.startsWith("/pm/risks") || link.includes("blocker")) {
+                // Members see blockers on their dashboard
+                return "/member/dashboard";
+            }
+            if (link.startsWith("/pm/projects/")) {
+                return link.replace("/pm/projects/", "/member/project/");
+            }
+            if (link.startsWith("/projects/")) {
+                return link.replace("/projects/", "/member/project/");
+            }
+            if (link.startsWith("/pm")) {
+                // Fallback for other PM links - redirect to member dashboard to avoid 404/403
+                return "/member/dashboard";
+            }
+        } else {
+            // PM Context
+            if (link.startsWith("/projects/")) {
+                return link.replace("/projects/", "/pm/projects/");
+            }
+        }
+
+        return link;
+    }
+
     const headerLabel = groupByDate && groupedNotifications.length > 0 ? groupedNotifications[0].label : null;
 
     return (
@@ -272,15 +305,7 @@ export function NotificationsClient({
                             <div className="space-y-3">
                                 {group.items.map((notif) => {
                                     const style = getNotificationStyle(notif);
-                                    // Only replace path if it is NOT a pm link
-                                    let link = notif.link;
-                                    if (link && !link.startsWith("/pm")) {
-                                        if (pathname.startsWith("/pm")) {
-                                            link = link.replace(/^\/projects\//, "/pm/projects/");
-                                        } else {
-                                            link = link.replace(/^\/projects\//, "/member/project/");
-                                        }
-                                    }
+                                    const link = getAdjustedLink(notif.link);
 
                                     return (
                                         <div
@@ -318,15 +343,7 @@ export function NotificationsClient({
                 ) : (
                     displayedNotifications.map((notif) => {
                         const style = getNotificationStyle(notif);
-                        // Only replace path if it is NOT a pm link
-                        let link = notif.link;
-                        if (link && !link.startsWith("/pm")) {
-                            if (pathname.startsWith("/pm")) {
-                                link = link.replace(/^\/projects\//, "/pm/projects/");
-                            } else {
-                                link = link.replace(/^\/projects\//, "/member/project/");
-                            }
-                        }
+                        const link = getAdjustedLink(notif.link);
 
                         return (
                             <div

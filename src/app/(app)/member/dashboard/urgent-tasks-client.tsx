@@ -97,7 +97,6 @@ export function UrgentTasksClient({ projects }: { projects: ProjectRef[] }) {
                             }
                         });
                     } catch {
-                        // ignore errors for individual projects
                     }
                 })
             );
@@ -141,11 +140,8 @@ export function UrgentTasksClient({ projects }: { projects: ProjectRef[] }) {
                     </div>
                 ) : !hasTasks ? (
                     <div className="flex flex-col items-center justify-center gap-3 rounded-xl border border-slate-200 bg-white py-12 text-center md:col-span-2">
-                        <div className="rounded-lg bg-slate-100 p-3">
-                            <div className="text-4xl">🪴</div>
-                        </div>
                         <div className="space-y-1">
-                            <p className="font-semibold text-slate-900">No urgent tasks 🎉</p>
+                            <p className="font-semibold text-slate-900">No urgent tasks.</p>
                             <p className="text-sm text-slate-500 max-w-xs mx-auto">
                                 Everything is under control for now. Take a quick break!
                             </p>
