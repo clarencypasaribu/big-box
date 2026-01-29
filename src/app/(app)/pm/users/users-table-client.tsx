@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { Eye, Folder, Loader2, Search, Ban, ShieldAlert, Mail, Phone as PhoneIcon, BadgeCheck, Calendar, Briefcase } from "lucide-react";
+import { Eye, Folder, Loader2, Search, Ban, ShieldAlert, Mail, Phone as PhoneIcon, BadgeCheck, Calendar, Briefcase, CheckCircle2 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 
 import { Badge } from "@/components/ui/badge";
@@ -334,86 +334,94 @@ export function UsersTableClient({
                 </Button>
               </div>
 
-              <div className="px-6 pb-6">
-                <div className="relative flex flex-col items-center -mt-12 mb-6">
-                  <div className="relative flex size-24 items-center justify-center rounded-full bg-white ring-4 ring-white shadow-md overflow-hidden text-3xl font-bold text-indigo-600">
-                    {detailUser.avatarUrl ? (
-                      <img src={detailUser.avatarUrl} alt={detailUser.name} className="size-full object-cover" />
-                    ) : (
-                      detailUser.name.charAt(0).toUpperCase()
-                    )}
-                    <div className={`absolute bottom-0 right-0 size-6 rounded-full border-[3px] border-white ${detailUser.status === 'Active' ? 'bg-emerald-500' : 'bg-slate-300'}`}></div>
+              <div className="px-6 pb-8">
+                <div className="relative flex flex-col items-center -mt-16 mb-6">
+                  <div className="relative flex size-32 items-center justify-center rounded-full bg-white p-1 shadow-lg ring-1 ring-slate-100">
+                    <div className="flex size-full items-center justify-center rounded-full bg-indigo-50 text-indigo-600 overflow-hidden">
+                      {detailUser.avatarUrl ? (
+                        <img src={detailUser.avatarUrl} alt={detailUser.name} className="size-full object-cover" />
+                      ) : (
+                        <span className="text-4xl font-bold">{detailUser.name.charAt(0).toUpperCase()}</span>
+                      )}
+                    </div>
+                    {/* Status Indicator Badge */}
+                    <div className={`absolute bottom-1 right-1 size-7 rounded-full border-[3px] border-white flex items-center justify-center ${detailUser.status === 'Active' ? 'bg-emerald-500' : 'bg-slate-300'}`}>
+                      {detailUser.status === 'Active' && <CheckCircle2 className="size-3.5 text-white" strokeWidth={3} />}
+                    </div>
                   </div>
 
-                  <div className="text-center mt-3 space-y-1">
-                    <h2 className="text-xl font-bold text-slate-900">{detailUser.name}</h2>
-                    <p className="text-sm font-medium text-slate-500 flex items-center justify-center gap-1.5">
-                      {detailUser.position || "No Position"}
-                      <span className="text-slate-300">•</span>
-                      <span className="text-indigo-600">{detailUser.role || "Team Member"}</span>
-                    </p>
+                  <div className="text-center mt-4 space-y-1">
+                    <h2 className="text-2xl font-bold text-slate-900">{detailUser.name}</h2>
+                    <div className="flex items-center justify-center gap-2 text-sm">
+                      <Badge variant="secondary" className="rounded-full bg-indigo-50 px-3 py-0.5 font-medium text-indigo-700 hover:bg-indigo-100">
+                        {detailUser.role || "Team Member"}
+                      </Badge>
+                      <span className="text-slate-300">|</span>
+                      <span className="text-slate-500 font-medium">{detailUser.position || "No Position"}</span>
+                    </div>
                   </div>
                 </div>
 
                 <div className="space-y-4">
-                  <div className="grid gap-3">
-                    {/* Email - Full Width */}
-                    <div className="flex items-center p-3 rounded-xl bg-slate-50 border border-slate-100 gap-3">
-                      <div className="grid size-10 place-items-center rounded-full bg-white text-slate-500 shadow-sm border border-slate-100 shrink-0">
-                        <Mail className="size-4" />
+                  {/* Contact Info Section */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {/* Email */}
+                    <div className="col-span-1 md:col-span-2 flex items-center p-4 rounded-2xl bg-white border border-slate-100 shadow-sm gap-4 hover:border-indigo-100 transition-colors">
+                      <div className="grid size-10 place-items-center rounded-full bg-indigo-50 text-indigo-600 shrink-0">
+                        <Mail className="size-5" />
                       </div>
-                      <div className="min-w-0 flex-1">
-                        <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">Email Address</p>
-                        <p className="text-sm font-medium text-slate-900 truncate">{detailUser.email}</p>
+                      <div className="min-w-0">
+                        <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Email Address</p>
+                        <p className="text-sm font-semibold text-slate-900 truncate">{detailUser.email}</p>
                       </div>
                     </div>
 
-                    {/* Grid for other details */}
-                    <div className="grid grid-cols-2 gap-3">
-                      <div className="flex items-center p-3 rounded-xl bg-slate-50 border border-slate-100 gap-3">
-                        <div className="grid size-10 place-items-center rounded-full bg-white text-slate-500 shadow-sm border border-slate-100 shrink-0">
-                          <PhoneIcon className="size-4" />
-                        </div>
-                        <div className="min-w-0 flex-1">
-                          <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">Phone</p>
-                          <p className="text-sm font-medium text-slate-900 truncate">{detailUser.phone || "-"}</p>
-                        </div>
+                    {/* Phone */}
+                    <div className="flex items-center p-4 rounded-2xl bg-white border border-slate-100 shadow-sm gap-4 hover:border-indigo-100 transition-colors">
+                      <div className="grid size-10 place-items-center rounded-full bg-emerald-50 text-emerald-600 shrink-0">
+                        <PhoneIcon className="size-5" />
                       </div>
-
-                      <div className="flex items-center p-3 rounded-xl bg-slate-50 border border-slate-100 gap-3">
-                        <div className="grid size-10 place-items-center rounded-full bg-white text-slate-500 shadow-sm border border-slate-100 shrink-0">
-                          <Briefcase className="size-4" />
-                        </div>
-                        <div className="min-w-0 flex-1">
-                          <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">Position</p>
-                          <p className="text-sm font-medium text-slate-900 truncate">{detailUser.position || "-"}</p>
-                        </div>
+                      <div className="min-w-0">
+                        <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Phone</p>
+                        <p className="text-sm font-semibold text-slate-900 truncate">{detailUser.phone || "Not set"}</p>
                       </div>
+                    </div>
 
-                      <div className="flex items-center p-3 rounded-xl bg-slate-50 border border-slate-100 gap-3">
-                        <div className="grid size-10 place-items-center rounded-full bg-white text-slate-500 shadow-sm border border-slate-100 shrink-0">
-                          <Calendar className="size-4" />
-                        </div>
-                        <div className="min-w-0 flex-1">
-                          <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">Joined</p>
-                          <p className="text-sm font-medium text-slate-900 truncate">{detailUser.joinedAt || "-"}</p>
-                        </div>
+                    {/* Joined Date */}
+                    <div className="flex items-center p-4 rounded-2xl bg-white border border-slate-100 shadow-sm gap-4 hover:border-indigo-100 transition-colors">
+                      <div className="grid size-10 place-items-center rounded-full bg-amber-50 text-amber-600 shrink-0">
+                        <Calendar className="size-5" />
                       </div>
+                      <div className="min-w-0">
+                        <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Joined Date</p>
+                        <p className="text-sm font-semibold text-slate-900 truncate">{detailUser.joinedAt || "Unknown"}</p>
+                      </div>
+                    </div>
 
-                      <div className="flex items-center p-3 rounded-xl bg-slate-50 border border-slate-100 gap-3">
-                        <div className="grid size-10 place-items-center rounded-full bg-white text-slate-500 shadow-sm border border-slate-100 shrink-0">
-                          <BadgeCheck className="size-4" />
-                        </div>
-                        <div className="min-w-0 flex-1">
-                          <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">Status</p>
-                          <div className={`inline-flex items-center gap-1.5 mt-0.5 rounded-full px-2 py-0.5 text-xs font-semibold ${detailUser.status === 'Active' ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-200 text-slate-600'}`}>
-                            <div className={`size-1.5 rounded-full ${detailUser.status === 'Active' ? 'bg-emerald-500' : 'bg-slate-500'}`} />
-                            {detailUser.status}
-                          </div>
+                    {/* Status */}
+                    <div className="flex items-center p-4 rounded-2xl bg-white border border-slate-100 shadow-sm gap-4 hover:border-indigo-100 transition-colors">
+                      <div className="grid size-10 place-items-center rounded-full bg-slate-50 text-slate-600 shrink-0">
+                        <BadgeCheck className="size-5" />
+                      </div>
+                      <div className="min-w-0">
+                        <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Account Status</p>
+                        <div className={`inline-flex items-center gap-1.5 mt-0.5 text-sm font-semibold ${detailUser.status === 'Active' ? 'text-emerald-700' : 'text-slate-600'}`}>
+                          {detailUser.status}
                         </div>
                       </div>
                     </div>
 
+                    {/* Position (Redundant but keeps grid balanced if needed, or remove. I'll replace with Role detail if needed, or keeping Layout balanced with 4 items below email) */}
+                    {/* Actually I already showed position and role in header. Maybe show User ID? */}
+                    <div className="md:col-span-2 flex items-center p-4 rounded-2xl bg-slate-50 border border-slate-100/50 shadow-sm gap-4">
+                      <div className="grid size-8 place-items-center rounded-full bg-white text-slate-400 shrink-0 border border-slate-100">
+                        <span className="text-[10px] font-bold">ID</span>
+                      </div>
+                      <div className="min-w-0 flex items-center gap-2">
+                        <span className="text-xs text-slate-400 font-mono">User ID:</span>
+                        <code className="text-xs font-mono text-slate-600 bg-white px-2 py-0.5 rounded border border-slate-200">{detailUser.id}</code>
+                      </div>
+                    </div>
                   </div>
                 </div>
               </div>

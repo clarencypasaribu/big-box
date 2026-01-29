@@ -318,7 +318,7 @@ export default async function PMDashboardPage() {
   return (
     <main className="space-y-6">
       <header className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-        <h1 className="text-4xl font-semibold text-slate-900">
+        <h1 className="text-4xl font-semibold text-slate-900 whitespace-nowrap">
           Project Control Tower
         </h1>
         <PMHeaderActions />

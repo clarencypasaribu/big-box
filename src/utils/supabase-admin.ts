@@ -12,6 +12,10 @@ export function createSupabaseAdminClient() {
     throw new Error("Missing NEXT_PUBLIC_SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY");
   }
 
-  cachedAdmin = createClient(url, serviceKey);
+  cachedAdmin = createClient(url, serviceKey, {
+    auth: {
+      persistSession: false,
+    },
+  });
   return cachedAdmin;
 }

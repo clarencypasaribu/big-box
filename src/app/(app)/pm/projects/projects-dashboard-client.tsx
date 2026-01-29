@@ -67,7 +67,7 @@ export function ProjectsDashboardClient({
                 <p className="text-sm text-slate-600">{stat.label}</p>
                 <p className="text-3xl font-semibold text-slate-900">{stat.value}</p>
               </div>
-              <div className={`grid size-12 place-items-center rounded-lg ${stat.accent}`}>
+              <div className={`grid size-12 place-items-center rounded-full ${stat.accent}`}>
                 <stat.icon className="size-5" />
               </div>
             </CardContent>

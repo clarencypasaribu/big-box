@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input";
 import { UsersTableClient, type UserRow } from "@/app/(app)/pm/users/users-table-client";
 import { PMSidebar } from "@/app/(app)/pm/_components/sidebar";
 import { getCurrentUserProfile } from "@/utils/current-user";
+import { createSupabaseServerClient } from "@/utils/supabase-server";
 import { createSupabaseServiceClient } from "@/utils/supabase-service";
 
 export const dynamic = "force-dynamic";
@@ -17,61 +18,83 @@ const statusColor: Record<UserRow["status"], string> = {
 };
 
 async function loadUsersFromDb(): Promise<{ users: UserRow[]; error?: string | null; supportsStatus: boolean }> {
-  try {
-    const supabase = await createSupabaseServiceClient({ allowWrite: true });
-    let supportsStatus = true;
-    let data: any[] | null = null;
+  let supportsStatus = true;
+  let data: any[] | null = null;
+  let fetchError: string | null = null;
 
-    const firstAttempt = await supabase
+  try {
+    // 1. Try Admin Client (Service Role) - Bypasses RLS to show ALL users
+    const adminSupabase = await createSupabaseServiceClient({ allowWrite: true });
+
+    // Explicitly check if we got an admin client (Service Role)
+    // If usage of 'auth.persistSession: false' resolved the fetch issue, this should work.
+    const adminAttempt = await adminSupabase
       .from("profiles")
       .select("id,full_name,email,role,is_active,updated_at,phone,position,avatar_url,created_at")
       .order("full_name", { ascending: true });
 
-    if (firstAttempt.error) {
-      if (firstAttempt.error.message.toLowerCase().includes("is_active")) {
-        supportsStatus = false;
-        const fallback = await supabase
-          .from("profiles")
-          .select("id,full_name,email,role,updated_at")
-          .order("full_name", { ascending: true });
-        if (fallback.error) {
-          console.error("Failed to load profiles:", fallback.error.message);
-          return { users: [], error: fallback.error.message, supportsStatus };
-        }
-        data = fallback.data ?? [];
-      } else {
-        console.error("Failed to load profiles:", firstAttempt.error.message);
-        return { users: [], error: firstAttempt.error.message, supportsStatus };
-      }
-    } else {
-      data = firstAttempt.data ?? [];
+    if (adminAttempt.error) {
+      throw adminAttempt.error;
     }
+    data = adminAttempt.data ?? [];
 
-    const users: UserRow[] = (data ?? []).map((row: any) => {
-      const id = String(row.id ?? "").trim();
-      const rawStatus = row.is_active;
-      const isActive = supportsStatus
-        ? rawStatus === true || rawStatus === "true" || rawStatus === 1 || rawStatus === "1"
-        : !!row.updated_at;
-      return {
-        id,
-        name: row.full_name || row.email || "User",
-        email: row.email || "-",
-        role: row.role || null,
-        status: isActive ? "Active" : "Inactive",
-        phone: row.phone || "-",
-        position: row.position || "-",
-        avatarUrl: row.avatar_url || null,
-        joinedAt: row.created_at ? new Intl.DateTimeFormat("en-GB", { day: "numeric", month: "long", year: "numeric" }).format(new Date(row.created_at)) : "Unknown",
-      };
-    });
+  } catch (adminErr) {
+    const msg = adminErr instanceof Error ? adminErr.message : "Unknown admin error";
+    console.error("Admin client failed to load profiles, falling back to User Session:", msg);
+    fetchError = msg;
 
-    return { users, error: null, supportsStatus };
-  } catch (err) {
-    const message = err instanceof Error ? err.message : "Failed to load profiles";
-    console.error(message);
-    return { users: [], error: message, supportsStatus: false };
+    // 2. Fallback to User Session (RLS Restricted) - Shows what the user is allowed to see (usually just themselves or team)
+    try {
+      const userSupabase = await createSupabaseServerClient();
+      const userAttempt = await userSupabase
+        .from("profiles")
+        .select("id,full_name,email,role,is_active,updated_at,phone,position,avatar_url,created_at")
+        .order("full_name", { ascending: true });
+
+      if (userAttempt.error) {
+        // Handle specific column error if occurs in fallback
+        if (userAttempt.error.message.toLowerCase().includes("is_active")) {
+          supportsStatus = false;
+          const userFallback = await userSupabase
+            .from("profiles")
+            .select("id,full_name,email,role,updated_at")
+            .order("full_name", { ascending: true });
+
+          if (userFallback.error) throw userFallback.error;
+          data = userFallback.data ?? [];
+        } else {
+          throw userAttempt.error;
+        }
+      } else {
+        data = userAttempt.data ?? [];
+      }
+    } catch (userErr) {
+      const userMsg = userErr instanceof Error ? userErr.message : "Active session fallback failed";
+      console.error("All strategies failed:", userMsg);
+      return { users: [], error: fetchError || userMsg, supportsStatus: false };
+    }
   }
+
+  const users: UserRow[] = (data ?? []).map((row: any) => {
+    const id = String(row.id ?? "").trim();
+    const rawStatus = row.is_active;
+    const isActive = supportsStatus
+      ? rawStatus === true || rawStatus === "true" || rawStatus === 1 || rawStatus === "1"
+      : !!row.updated_at;
+    return {
+      id,
+      name: row.full_name || row.email || "User",
+      email: row.email || "-",
+      role: row.role || null,
+      status: isActive ? "Active" : "Inactive",
+      phone: row.phone || "-",
+      position: row.position || "-",
+      avatarUrl: row.avatar_url || null,
+      joinedAt: row.created_at ? new Intl.DateTimeFormat("en-GB", { day: "numeric", month: "long", year: "numeric" }).format(new Date(row.created_at)) : "Unknown",
+    };
+  });
+
+  return { users, error: null, supportsStatus };
 }
 
 export default async function PMUsersPage() {

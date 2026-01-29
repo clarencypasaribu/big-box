@@ -96,7 +96,7 @@ export function RisksDashboardClient({
                   <span className={`text-xs font-semibold ${stat.trendColor}`}>{stat.trend}</span>
                 </div>
               </div>
-              <div className={`grid size-12 place-items-center rounded-xl bg-opacity-50 ${stat.accent}`}>
+              <div className={`grid size-12 place-items-center rounded-full bg-opacity-50 ${stat.accent}`}>
                 <stat.icon className="size-6" />
               </div>
             </CardContent>
