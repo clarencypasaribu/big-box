@@ -24,7 +24,7 @@ async function loadUsersFromDb(): Promise<{ users: UserRow[]; error?: string | n
 
     const firstAttempt = await supabase
       .from("profiles")
-      .select("id,full_name,email,role,is_active,updated_at")
+      .select("id,full_name,email,role,is_active,updated_at,phone,position,avatar_url,created_at")
       .order("full_name", { ascending: true });
 
     if (firstAttempt.error) {
@@ -59,6 +59,10 @@ async function loadUsersFromDb(): Promise<{ users: UserRow[]; error?: string | n
         email: row.email || "-",
         role: row.role || null,
         status: isActive ? "Active" : "Inactive",
+        phone: row.phone || "-",
+        position: row.position || "-",
+        avatarUrl: row.avatar_url || null,
+        joinedAt: row.created_at ? new Intl.DateTimeFormat("en-GB", { day: "numeric", month: "long", year: "numeric" }).format(new Date(row.created_at)) : "Unknown",
       };
     });
 
@@ -81,14 +85,14 @@ export default async function PMUsersPage() {
         <h1 className="text-3xl font-semibold text-slate-900">User</h1>
       </div>
 
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+      <div className="grid gap-4 grid-cols-1 sm:grid-cols-2">
         <Card className="border-slate-200 shadow-sm">
           <CardContent className="flex items-center justify-between gap-4 p-5">
             <div className="space-y-1">
               <p className="text-sm text-slate-600">Active</p>
               <p className="text-3xl font-semibold text-slate-900">{activeCount}</p>
             </div>
-            <div className="grid size-12 place-items-center rounded-lg bg-emerald-50 text-emerald-700">
+            <div className="grid size-12 place-items-center rounded-full bg-emerald-100 text-emerald-700">
               <User className="size-5" />
             </div>
           </CardContent>
@@ -99,7 +103,7 @@ export default async function PMUsersPage() {
               <p className="text-sm text-slate-600">Inactive</p>
               <p className="text-3xl font-semibold text-slate-900">{inactiveCount}</p>
             </div>
-            <div className="grid size-12 place-items-center rounded-lg bg-rose-50 text-rose-700">
+            <div className="grid size-12 place-items-center rounded-full bg-rose-100 text-rose-700">
               <ShieldOff className="size-5" />
             </div>
           </CardContent>

@@ -2,8 +2,22 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
-import { Bell, CheckCircle2, AlertTriangle } from "lucide-react";
+import { useRouter, usePathname } from "next/navigation";
+import {
+    Bell,
+    CheckCircle2,
+    AlertTriangle,
+    Clock,
+    Briefcase,
+    MessageSquare,
+    ShieldAlert,
+    Siren,
+    ListTodo,
+    UserX,
+    TrendingDown,
+    Activity,
+    Info
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
@@ -35,6 +49,7 @@ export function NotificationsClient({
     const [notifications, setNotifications] = useState<Notification[]>([]);
     const [loading, setLoading] = useState(true);
     const router = useRouter();
+    const pathname = usePathname();
 
     useEffect(() => {
         async function fetchNotifications() {
@@ -65,23 +80,126 @@ export function NotificationsClient({
         return `${Math.floor(diffInSeconds / 86400)}d ago`;
     }
 
-    function getIcon(type: string) {
-        if (type.includes("APPROV") || type === "success") return <CheckCircle2 className="size-5 text-emerald-600" />;
-        if (type.includes("REJECT") || type.includes("HIGH") || type === "error") return <AlertTriangle className="size-5 text-rose-600" />;
-        return <Bell className="size-5 text-indigo-600" />;
+    // Helper to determine styling based on type/content
+    function getNotificationStyle(notif: Notification) {
+        const type = notif.type;
+        const msg = notif.message.toLowerCase();
+
+        // --- PM SPECIFIC CATEGORIES ---
+
+        // A. Project Alert (Status Change / Deadline) - ORANGE/ROSE
+        if (type === "PROJECT_ALERT") {
+            return {
+                icon: <Activity className="size-5 text-orange-600" />,
+                bg: "bg-orange-100",
+                border: "border-orange-100"
+            };
+        }
+
+        // B. Risk Alert (Blockers) - RED
+        if (type === "RISK_ALERT") {
+            return {
+                icon: <ShieldAlert className="size-5 text-rose-600" />,
+                bg: "bg-rose-100",
+                border: "border-rose-100"
+            };
+        }
+
+        // C. Task Aggregate (Overdue count) - AMBER
+        if (type === "TASK_AGGREGATE") {
+            return {
+                icon: <ListTodo className="size-5 text-amber-600" />,
+                bg: "bg-amber-100",
+                border: "border-amber-100"
+            };
+        }
+
+        // D. Member Issue - PURPLE
+        if (type === "MEMBER_ISSUE") {
+            return {
+                icon: <UserX className="size-5 text-purple-600" />,
+                bg: "bg-purple-100",
+                border: "border-purple-100"
+            };
+        }
+
+        // --- STANDARD CATEGORIES ---
+
+        // 1. Assignments (Blue)
+        if (type === "NEW_ASSIGNMENT") {
+            return {
+                icon: <Briefcase className="size-5 text-blue-600" />,
+                bg: "bg-blue-100",
+                border: "border-blue-100" // For card border if needed, generally border-slate-100 is fine
+            };
+        }
+
+        // 2. Reminders (Amber/Red)
+        if (type === "REMINDER" || type === "DEADLINE_APPROACHING") {
+            if (msg.includes("overdue")) {
+                return {
+                    icon: <AlertTriangle className="size-5 text-rose-600" />,
+                    bg: "bg-rose-100",
+                    border: "border-rose-100"
+                };
+            }
+            // Due Today / Tomorrow / Approach
+            return {
+                icon: <Clock className="size-5 text-amber-600" />,
+                bg: "bg-amber-100",
+                border: "border-amber-100"
+            };
+        }
+
+        // 3. Interactions (Green)
+        if (type === "TASK_COMMENT" || type.includes("Message")) {
+            return {
+                icon: <MessageSquare className="size-5 text-emerald-600" />,
+                bg: "bg-emerald-100",
+                border: "border-emerald-100"
+            };
+        }
+
+        // 4. Project Info (Slate/Gray)
+        if (type === "PROJECT_INFO") {
+            return {
+                icon: <Info className="size-5 text-slate-600" />,
+                bg: "bg-slate-100",
+                border: "border-slate-100"
+            };
+        }
+
+        // Fallback / Generic
+        if (type.includes("APPROV") || type === "success") {
+            return {
+                icon: <CheckCircle2 className="size-5 text-emerald-600" />,
+                bg: "bg-emerald-100",
+                border: "border-emerald-100"
+            };
+        }
+
+        return {
+            icon: <Bell className="size-5 text-indigo-600" />,
+            bg: "bg-indigo-100",
+            border: "border-indigo-100"
+        };
     }
 
     const visibleNotifications = useMemo(() => {
-        if (!onlyToday) return notifications;
-        const now = new Date();
-        return notifications.filter((notif) => {
-            const date = new Date(notif.created_at);
-            return (
-                date.getFullYear() === now.getFullYear() &&
-                date.getMonth() === now.getMonth() &&
-                date.getDate() === now.getDate()
-            );
-        });
+        let filtered = notifications;
+
+        if (onlyToday) {
+            const now = new Date();
+            filtered = notifications.filter((notif) => {
+                const date = new Date(notif.created_at);
+                return (
+                    date.getFullYear() === now.getFullYear() &&
+                    date.getMonth() === now.getMonth() &&
+                    date.getDate() === now.getDate()
+                );
+            });
+        }
+        return filtered;
     }, [notifications, onlyToday]);
 
     const displayedNotifications = useMemo(() => {
@@ -137,7 +255,7 @@ export function NotificationsClient({
 
             <div className="flex flex-col gap-3">
                 {loading ? (
-                    <p className="py-4 text-center text-sm text-slate-500">Loading notifications...</p>
+                    <p className="py-4 text-center text-sm text-slate-500">Loading...</p>
                 ) : displayedNotifications.length === 0 ? (
                     <div className="flex flex-col items-center justify-center py-8 text-center">
                         <Bell className="mb-2 size-8 text-slate-200" />
@@ -153,44 +271,44 @@ export function NotificationsClient({
                             </h4>
                             <div className="space-y-3">
                                 {group.items.map((notif) => {
-                                    const getNotifLink = () => {
-                                        if (!notif.link) return null;
-                                        return notif.link.replace(/^\/projects\//, "/member/project/");
-                                    };
-                                    const link = getNotifLink();
+                                    const style = getNotificationStyle(notif);
+                                    // Only replace path if it is NOT a pm link
+                                    let link = notif.link;
+                                    if (link && !link.startsWith("/pm")) {
+                                        if (pathname.startsWith("/pm")) {
+                                            link = link.replace(/^\/projects\//, "/pm/projects/");
+                                        } else {
+                                            link = link.replace(/^\/projects\//, "/member/project/");
+                                        }
+                                    }
 
                                     return (
                                         <div
                                             key={notif.id}
                                             onClick={() => link && router.push(link)}
                                             className={cn(
-                                                "group relative flex items-start gap-3 rounded-xl border border-slate-100 p-3 transition-all hover:bg-slate-50",
+                                                "group relative flex items-start gap-4 rounded-xl border border-slate-100 p-4 transition-all hover:bg-slate-50 hover:shadow-sm",
                                                 !notif.is_read ? "bg-indigo-50/30" : "bg-white",
                                                 link && "cursor-pointer"
                                             )}
                                         >
-                                            <div
-                                                className={cn(
-                                                    "grid size-10 shrink-0 place-items-center rounded-full",
-                                                    notif.type.includes("APPROV")
-                                                        ? "bg-emerald-100"
-                                                        : notif.type.includes("REJECT")
-                                                            ? "bg-rose-100"
-                                                            : "bg-indigo-100"
-                                                )}
-                                            >
-                                                {getIcon(notif.type)}
+                                            <div className={cn(
+                                                "grid size-10 shrink-0 place-items-center rounded-full transition-colors",
+                                                style.bg
+                                            )}>
+                                                {style.icon}
                                             </div>
                                             <div className="flex-1 space-y-1">
-                                                <div className="flex items-center justify-between">
-                                                    <p className="font-semibold text-slate-900">{notif.title}</p>
-                                                    <span className="text-xs text-slate-400">{formatTimeAgo(notif.created_at)}</span>
+                                                <div className="flex items-start justify-between gap-2">
+                                                    <p className="font-semibold text-slate-900 leading-tight">{notif.title}</p>
+                                                    <span className="text-xs font-medium text-slate-400 whitespace-nowrap pt-0.5">
+                                                        {formatTimeAgo(notif.created_at)}
+                                                    </span>
                                                 </div>
-                                                <p className="text-sm text-slate-600">{notif.message}</p>
+                                                <p className="text-sm text-slate-600 leading-relaxed max-w-[90%]">
+                                                    {notif.message}
+                                                </p>
                                             </div>
-                                            {!notif.is_read && (
-                                                <div className="mt-2 size-2 rounded-full bg-indigo-500" />
-                                            )}
                                         </div>
                                     );
                                 })}
@@ -199,42 +317,44 @@ export function NotificationsClient({
                     ))
                 ) : (
                     displayedNotifications.map((notif) => {
-                        const getNotifLink = () => {
-                            if (!notif.link) return null;
-                            return notif.link.replace(/^\/projects\//, '/member/project/');
-                        };
-                        const link = getNotifLink();
+                        const style = getNotificationStyle(notif);
+                        // Only replace path if it is NOT a pm link
+                        let link = notif.link;
+                        if (link && !link.startsWith("/pm")) {
+                            if (pathname.startsWith("/pm")) {
+                                link = link.replace(/^\/projects\//, "/pm/projects/");
+                            } else {
+                                link = link.replace(/^\/projects\//, "/member/project/");
+                            }
+                        }
 
                         return (
                             <div
                                 key={notif.id}
                                 onClick={() => link && router.push(link)}
                                 className={cn(
-                                    "group relative flex items-start gap-3 rounded-xl border border-slate-100 p-3 transition-all hover:bg-slate-50",
+                                    "group relative flex items-start gap-4 rounded-xl border border-slate-100 p-4 transition-all hover:bg-slate-50 hover:shadow-sm",
                                     !notif.is_read ? "bg-indigo-50/30" : "bg-white",
                                     link && "cursor-pointer"
                                 )}
                             >
-                                <div
-                                    className={cn(
-                                        "grid size-10 shrink-0 place-items-center rounded-full",
-                                        notif.type.includes("APPROV") ? "bg-emerald-100" :
-                                            notif.type.includes("REJECT") ? "bg-rose-100" :
-                                                "bg-indigo-100"
-                                    )}
-                                >
-                                    {getIcon(notif.type)}
+                                <div className={cn(
+                                    "grid size-10 shrink-0 place-items-center rounded-full transition-colors",
+                                    style.bg
+                                )}>
+                                    {style.icon}
                                 </div>
                                 <div className="flex-1 space-y-1">
-                                    <div className="flex items-center justify-between">
-                                        <p className="font-semibold text-slate-900">{notif.title}</p>
-                                        <span className="text-xs text-slate-400">{formatTimeAgo(notif.created_at)}</span>
+                                    <div className="flex items-start justify-between gap-2">
+                                        <p className="font-semibold text-slate-900 leading-tight">{notif.title}</p>
+                                        <span className="text-xs font-medium text-slate-400 whitespace-nowrap pt-0.5">
+                                            {formatTimeAgo(notif.created_at)}
+                                        </span>
                                     </div>
-                                    <p className="text-sm text-slate-600">{notif.message}</p>
+                                    <p className="text-sm text-slate-600 leading-relaxed max-w-[90%]">
+                                        {notif.message}
+                                    </p>
                                 </div>
-                                {!notif.is_read && (
-                                    <div className="mt-2 size-2 rounded-full bg-indigo-500" />
-                                )}
                             </div>
                         );
                     })

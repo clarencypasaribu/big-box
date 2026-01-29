@@ -52,7 +52,7 @@ type Column = {
   title: string;
   status: "Completed" | "Active" | "Testing" | "Pending";
   color: "indigo" | "amber" | "emerald";
-  approvalStatus?: "Not Submitted" | "Pending" | "Approved";
+  approvalStatus?: "Not Submitted" | "Pending" | "Approved" | "Rejected";
   cards: ColumnCard[];
 };
 
@@ -230,10 +230,18 @@ export function ProjectBoardClient({
   const [editTaskName, setEditTaskName] = useState("");
   const [editTaskPriority, setEditTaskPriority] = useState<ColumnCard["priority"]>("Medium");
   const [editTaskDescription, setEditTaskDescription] = useState("");
+  const [editTaskDueDate, setEditTaskDueDate] = useState("");
   const [searchTerm, setSearchTerm] = useState("");
   const [stageFilter, setStageFilter] = useState<string>("All stages");
+  const [myTasksOnly, setMyTasksOnly] = useState<boolean>(() => {
+    if (typeof window !== "undefined") {
+      return localStorage.getItem("project-board-my-tasks") === "true";
+    }
+    return false;
+  });
   const [stageApprovals, setStageApprovals] = useState<Record<string, ApprovalStatus>>({});
   const [approvalComments, setApprovalComments] = useState<Record<string, string>>({});
+  const [stageDeadlines, setStageDeadlines] = useState<Record<string, string>>({});
   const [loadingTasks, setLoadingTasks] = useState(true);
 
   const refreshProjectData = useCallback(async (options?: { silent?: boolean }) => {
@@ -241,13 +249,20 @@ export function ProjectBoardClient({
       setLoadingTasks(true);
     }
     try {
-      const [tasksRes, approvalsRes] = await Promise.all([
+      const [tasksRes, approvalsRes, projectRes] = await Promise.all([
         fetch(`/api/project-tasks?projectId=${encodeURIComponent(projectId)}`),
         fetch(`/api/project-stage-approvals?projectId=${encodeURIComponent(projectId)}`),
+        fetch(`/api/projects/${encodeURIComponent(projectId)}`),
       ]);
 
       const tasksBody = tasksRes.ok ? await tasksRes.json() : { data: [] };
       const approvalsBody = approvalsRes.ok ? await approvalsRes.json() : { data: [] };
+      const projectBody = projectRes.ok ? await projectRes.json() : { data: null };
+
+      // Extract stage deadlines from project data
+      if (projectBody.data?.stage_deadlines) {
+        setStageDeadlines(projectBody.data.stage_deadlines);
+      }
 
       const approvalsMap: Record<string, ApprovalStatus> = {};
       const commentsMap: Record<string, string> = {};
@@ -483,53 +498,19 @@ export function ProjectBoardClient({
                       <div>
                         <p className="text-sm font-semibold text-slate-900">{column.title}</p>
                         <div className="mt-1 flex items-center gap-2">
-                          <DropdownMenu>
-                            <DropdownMenuTrigger asChild>
-                              <Button
-                                disabled={isLocked}
-                                variant="outline"
-                                size="sm"
-                                className={cn(
-                                  "h-7 gap-1 rounded-md px-2 text-xs",
-                                  statusTone[column.status]
-                                )}
-                              >
-                                <span>{column.status}</span>
-                                <ChevronDown className="size-3" />
-                              </Button>
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent align="start" className="w-40">
-                              {statusOptions.map((status) => (
-                                <DropdownMenuItem
-                                  key={status}
-                                  disabled={isLocked}
-                                  onSelect={(event) => {
-                                    event.preventDefault();
-                                    updateColumns((source) =>
-                                      source.map((item) => {
-                                        if (item.id !== column.id) return item;
-                                        return {
-                                          ...item,
-                                          status,
-                                          cards: item.cards.map((card) => ({
-                                            ...card,
-                                            done: status === "Completed",
-                                          })),
-                                        };
-                                      })
-                                    );
-                                  }}
-                                  className={cn(
-                                    "flex items-center justify-between",
-                                    column.status === status && "font-semibold text-slate-900"
-                                  )}
-                                >
-                                  <span>{status}</span>
-                                  {column.status === status ? <span>✓</span> : null}
-                                </DropdownMenuItem>
-                              ))}
-                            </DropdownMenuContent>
-                          </DropdownMenu>
+                          {/* Task Count */}
+                          <span className="rounded-md bg-slate-100 px-2 py-1 text-xs font-semibold text-slate-600">
+                            {column.cards.filter((c) => c.done).length}/{column.cards.length} tasks
+                          </span>
+                          {/* Stage Deadline */}
+                          {stageDeadlines[column.id] ? (
+                            <span className="flex items-center gap-1 rounded-md bg-blue-50 px-2 py-1 text-xs font-medium text-blue-600">
+                              <CalendarClock className="size-3" />
+                              {new Date(stageDeadlines[column.id]).toLocaleDateString("id-ID", { day: "numeric", month: "short", year: "numeric" })}
+                            </span>
+                          ) : (
+                            <span className="text-xs text-slate-400">No deadline set</span>
+                          )}
                         </div>
                         <div className="mt-2 flex flex-col gap-2">
                           <div className="flex flex-wrap items-center gap-2">
@@ -553,7 +534,7 @@ export function ProjectBoardClient({
                                 approvalStatus === "Approved" ||
                                 isLocked ||
                                 column.cards.length === 0 ||
-                                (column.status !== "Completed" && column.cards.some((card) => !card.done))
+                                column.cards.some((card) => !card.done)
                               }
                               onClick={async (event) => {
                                 // Prevent any potential form submission or bubbling
@@ -632,38 +613,46 @@ export function ProjectBoardClient({
                         <div
                           key={card.id}
                           className={cn(
-                            "flex min-h-[180px] flex-col gap-3 rounded-xl border border-slate-200 bg-white p-4 shadow-sm",
-                            isDone && "bg-slate-200 opacity-50"
+                            "group relative flex flex-col gap-3 rounded-xl border p-4 shadow-sm transition-all hover:shadow-md",
+                            isDone
+                              ? "border-emerald-200 bg-emerald-50/50"
+                              : "border-slate-200 bg-white hover:border-slate-300"
                           )}
                         >
+
+                          {/* Header: Priority + Menu */}
                           <div className="flex items-center justify-between">
                             <span
                               className={cn(
-                                "rounded-md px-2 py-1 text-xs font-semibold",
-                                card.priority ? priorityTone[card.priority] : "bg-slate-100 text-slate-700"
+                                "rounded-full px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wide",
+                                card.priority === "High" && "bg-rose-100 text-rose-700",
+                                card.priority === "Medium" && "bg-amber-100 text-amber-700",
+                                card.priority === "Low" && "bg-emerald-100 text-emerald-700",
+                                !card.priority && "bg-slate-100 text-slate-600"
                               )}
                             >
-                              {card.priority ? `${card.priority} Priority` : "No Priority"}
+                              {card.priority || "No"} Priority
                             </span>
                             <DropdownMenu>
                               <DropdownMenuTrigger asChild>
                                 <button
                                   type="button"
                                   data-no-nav="true"
-                                  className="text-xs text-slate-400 hover:text-slate-600"
+                                  className="rounded p-1 text-slate-400 opacity-0 transition-opacity hover:bg-slate-100 hover:text-slate-600 group-hover:opacity-100"
                                   onClick={(event) => {
                                     event.preventDefault();
                                     event.stopPropagation();
                                     ignoreNextNavRef.current = true;
                                   }}
                                 >
-                                  •••
+                                  <svg className="size-4" fill="currentColor" viewBox="0 0 20 20">
+                                    <path d="M10 6a2 2 0 110-4 2 2 0 010 4zM10 12a2 2 0 110-4 2 2 0 010 4zM10 18a2 2 0 110-4 2 2 0 010 4z" />
+                                  </svg>
                                 </button>
                               </DropdownMenuTrigger>
                               <DropdownMenuContent align="end" className="w-36">
                                 <DropdownMenuItem
                                   onSelect={async (event) => {
-                                    event.preventDefault();
                                     event.stopPropagation();
                                     ignoreNextNavRef.current = true;
                                     const nextDone = !card.done;
@@ -733,6 +722,7 @@ export function ProjectBoardClient({
                                     setEditTaskName(card.title);
                                     setEditTaskPriority(card.priority ?? "Medium");
                                     setEditTaskDescription(card.description ?? "");
+                                    setEditTaskDueDate(card.dueDate ?? "");
                                     setEditTaskOpen(true);
                                   }}
                                 >
@@ -765,35 +755,40 @@ export function ProjectBoardClient({
                               </DropdownMenuContent>
                             </DropdownMenu>
                           </div>
-                          <div className="space-y-2">
-                            <div className="flex items-center gap-2">
-                              <p
-                                className={cn(
-                                  "text-sm font-semibold",
-                                  isDone ? "text-slate-800" : "text-slate-900"
-                                )}
-                              >
-                                {card.title}
-                              </p>
-                            </div>
-                            {card.description ? (
-                              <p className={cn("text-xs", isDone ? "text-slate-700" : "text-slate-500")}>
+
+                          {/* Title + Description */}
+                          <div className="flex-1 space-y-1">
+                            <p className={cn(
+                              "text-sm font-semibold leading-snug",
+                              isDone ? "text-slate-600 line-through" : "text-slate-900"
+                            )}>
+                              {card.title}
+                            </p>
+                            {card.description && (
+                              <p className="text-xs text-slate-500 line-clamp-2">
                                 {card.description}
                               </p>
-                            ) : null}
+                            )}
                           </div>
-                          <div className="mt-auto flex items-center justify-between text-xs text-slate-500">
-                            <div className="flex items-center gap-1.5 rounded-md bg-slate-100 px-2 py-1 text-slate-600">
-                              <CalendarClock className="size-3.5" />
-                              <span className="font-medium">
-                                {card.dueDate ? new Date(card.dueDate).toLocaleDateString("id-ID", { day: "numeric", month: "short" }) : "-"}
-                              </span>
+
+                          {/* Footer: Due Date + Actions */}
+                          <div className="flex items-center justify-between border-t border-slate-100 pt-3">
+                            <div className={cn(
+                              "flex items-center gap-1.5 rounded-md px-2 py-1 text-xs font-medium",
+                              card.dueDate && new Date(card.dueDate) < new Date() && !isDone
+                                ? "bg-rose-50 text-rose-600"
+                                : "bg-slate-100 text-slate-600"
+                            )}>
+                              <CalendarClock className="size-3" />
+                              {card.dueDate
+                                ? new Date(card.dueDate).toLocaleDateString("id-ID", { day: "numeric", month: "short" })
+                                : "No due date"}
                             </div>
-                            <div className="flex items-center gap-3">
+                            <div className="flex items-center gap-2">
                               <button
                                 type="button"
                                 data-no-nav="true"
-                                className="flex items-center gap-1 text-slate-500 hover:text-slate-700"
+                                className="flex items-center gap-1 rounded-md px-2 py-1 text-xs text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-700"
                                 onClick={(event) => {
                                   event.preventDefault();
                                   event.stopPropagation();
@@ -804,12 +799,12 @@ export function ProjectBoardClient({
                                 }}
                               >
                                 <MessageSquare className="size-3" />
-                                {commentsList.length > 0 && activeTaskId === card.taskId ? commentsList.length : card.comments} comments
+                                <span>{commentsList.length > 0 && activeTaskId === card.taskId ? commentsList.length : card.comments}</span>
                               </button>
                               <button
                                 type="button"
                                 data-no-nav="true"
-                                className="flex items-center gap-1 text-slate-500 hover:text-slate-700"
+                                className="flex items-center gap-1 rounded-md px-2 py-1 text-xs text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-700"
                                 onClick={(event) => {
                                   event.preventDefault();
                                   event.stopPropagation();
@@ -820,7 +815,7 @@ export function ProjectBoardClient({
                                 }}
                               >
                                 <FileText className="size-3" />
-                                {filesList.length > 0 && activeTaskId === card.taskId ? filesList.length : card.files} files
+                                <span>{filesList.length > 0 && activeTaskId === card.taskId ? filesList.length : card.files}</span>
                               </button>
                             </div>
                           </div>
@@ -1056,37 +1051,7 @@ export function ProjectBoardClient({
                 onChange={(event) => setTaskName(event.target.value)}
               />
             </div>
-            <div className="grid gap-4 md:grid-cols-2">
-              <div className="space-y-2">
-                <label className="text-sm font-semibold text-slate-800" htmlFor="taskProject">
-                  Project
-                </label>
-                <select
-                  id="taskProject"
-                  className="h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-700"
-                  defaultValue={title}
-                >
-                  <option>{title}</option>
-                </select>
-              </div>
-              <div className="space-y-2">
-                <label className="text-sm font-semibold text-slate-800" htmlFor="taskMember">
-                  Assigned Team Member
-                </label>
-                <select
-                  id="taskMember"
-                  className="h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-700"
-                  value={taskMember}
-                  onChange={(event) => setTaskMember(event.target.value)}
-                >
-                  <option disabled>Select Member</option>
-                  <option>Eliza Sirait</option>
-                  <option>Nadia</option>
-                  <option>Arif</option>
-                </select>
-              </div>
-            </div>
-            <div className="grid gap-4 md:grid-cols-2">
+            <div className="grid gap-4 md:grid-cols-3">
               <div className="space-y-2">
                 <label className="text-sm font-semibold text-slate-800" htmlFor="taskPriority">
                   Priority
@@ -1114,13 +1079,14 @@ export function ProjectBoardClient({
                   onChange={(event) => setTaskDueDate(event.target.value)}
                 />
               </div>
+              <div className="space-y-2">
+                <label className="text-sm font-semibold text-slate-800" htmlFor="taskStage">
+                  Stage
+                </label>
+                <Input id="taskStage" value={addTaskStage} readOnly className="bg-slate-50" />
+              </div>
             </div>
-            <div className="space-y-2">
-              <label className="text-sm font-semibold text-slate-800" htmlFor="taskStage">
-                Stage
-              </label>
-              <Input id="taskStage" value={addTaskStage} readOnly />
-            </div>
+
             <div className="space-y-2">
               <label className="text-sm font-semibold text-slate-800" htmlFor="taskDesc">
                 Description
@@ -1170,6 +1136,7 @@ export function ProjectBoardClient({
                         title: editTaskName.trim(),
                         description: editTaskDescription.trim(),
                         priority: editTaskPriority ?? "Medium",
+                        dueDate: editTaskDueDate || undefined,
                       }
                       : card
                   ),
@@ -1187,6 +1154,7 @@ export function ProjectBoardClient({
                       title: editTaskName.trim(),
                       description: editTaskDescription.trim(),
                       priority: editTaskPriority ?? "Medium",
+                      due_date: editTaskDueDate || null,
                     }),
                   })
                     .then((res) => {
@@ -1226,6 +1194,17 @@ export function ProjectBoardClient({
                 <option>Medium</option>
                 <option>Low</option>
               </select>
+            </div>
+            <div className="space-y-2">
+              <label className="text-sm font-semibold text-slate-800" htmlFor="editTaskDueDate">
+                Due Date
+              </label>
+              <Input
+                id="editTaskDueDate"
+                type="date"
+                value={editTaskDueDate}
+                onChange={(event) => setEditTaskDueDate(event.target.value)}
+              />
             </div>
             <div className="space-y-2">
               <label className="text-sm font-semibold text-slate-800" htmlFor="editTaskDesc">

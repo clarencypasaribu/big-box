@@ -90,16 +90,6 @@ const stageLabels: Record<string, string> = {
 
 const statusOptions: ProjectRow["status"][] = ["In Progress", "Completed", "Not Started", "Pending"];
 
-const defaultTeamOptions = [
-  "Eliza Sirait",
-  "Claren Pas",
-  "Sarah Jenkins",
-  "Lina Hartono",
-  "Rafi Mahendra",
-  "Dwi Kurniawan",
-  "Fina Putri",
-];
-
 const statusColor: Record<ProjectRow["status"], string> = {
   "In Progress": "bg-amber-50 text-amber-700",
   Completed: "bg-emerald-50 text-emerald-700",
@@ -126,9 +116,13 @@ function formatDate(iso?: string | null) {
 
 export function ProjectsClient({
   initialProjects,
+  initialLeads = [],
+  initialMembers = [],
   searchQuery,
 }: {
   initialProjects: ProjectRow[];
+  initialLeads?: string[];
+  initialMembers?: string[];
   searchQuery?: string;
 }) {
   const router = useRouter();
@@ -158,8 +152,8 @@ export function ProjectsClient({
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [projectToDelete, setProjectToDelete] = useState<ProjectRow | null>(null);
   const [editId, setEditId] = useState<string | null>(null);
-  const [leadOptions, setLeadOptions] = useState<string[]>([]);
-  const [teamOptions, setTeamOptions] = useState<string[]>(defaultTeamOptions);
+  const [leadOptions, setLeadOptions] = useState<string[]>(initialLeads);
+  const [teamOptions, setTeamOptions] = useState<string[]>(initialMembers);
   const [newMember, setNewMember] = useState("");
   const [teamSearch, setTeamSearch] = useState("");
   const [form, setForm] = useState<ProjectFormState>({
@@ -191,37 +185,12 @@ export function ProjectsClient({
     }
   }, [projects]);
 
+  // Client-side fetch removed in favor of server-side data passed via props
   useEffect(() => {
-    async function loadTeamOptions() {
-      try {
-        const res = await fetch("/api/profiles");
-        if (!res.ok) return;
-        const body = await res.json();
-        const raw = body.data ?? [];
-        const leadNames = new Set<string>();
-        const memberNames = new Set<string>();
-
-        raw.forEach((row: any) => {
-          const name = row.full_name || row.email || row.id;
-          if (!name) return;
-          const role = String(row.role ?? "").toLowerCase().trim();
-          const isLead = role === "project manager" || role === "project_manager" || role === "pm";
-          const isMember = role === "team member" || role === "team_member";
-          if (isLead) leadNames.add(name);
-          else if (isMember) memberNames.add(name);
-        });
-
-        const leadList = Array.from(leadNames);
-        const memberList = Array.from(memberNames);
-        setLeadOptions(leadList);
-        setTeamOptions(memberList.length ? memberList : defaultTeamOptions);
-      } catch {
-        // Fallback to static list.
-      }
-    }
-
-    loadTeamOptions();
-  }, []);
+    // Sync props if they change (optional, usually page reload handles it)
+    if (initialLeads.length) setLeadOptions(initialLeads);
+    if (initialMembers.length) setTeamOptions(initialMembers);
+  }, [initialLeads, initialMembers]);
 
   useEffect(() => {
     if (dialogMode === "edit" && !editId && form.code.trim()) {
@@ -273,7 +242,7 @@ export function ProjectsClient({
   function openCreateDialog() {
     setEditId(null);
     setDialogMode("create");
-    setTeamOptions(defaultTeamOptions);
+    setTeamOptions(initialMembers);
     setForm({
       name: "",
       code: "",
@@ -491,18 +460,18 @@ export function ProjectsClient({
         </div>
       </div>
       <Table>
-      <TableHeader className="bg-slate-50 text-xs font-semibold uppercase tracking-wide text-slate-500">
-        <TableRow className="hover:bg-slate-50">
-          <TableHead>Project</TableHead>
-          <TableHead>Location</TableHead>
-          <TableHead>Status</TableHead>
-          <TableHead>Progress</TableHead>
-          <TableHead>Stage</TableHead>
-          <TableHead>Lead</TableHead>
-          <TableHead>Updated</TableHead>
-          <TableHead className="text-center">Actions</TableHead>
-        </TableRow>
-      </TableHeader>
+        <TableHeader className="bg-slate-50 text-xs font-semibold uppercase tracking-wide text-slate-500">
+          <TableRow className="hover:bg-slate-50">
+            <TableHead>Project</TableHead>
+            <TableHead>Location</TableHead>
+            <TableHead>Status</TableHead>
+            <TableHead>Progress</TableHead>
+            <TableHead>Stage</TableHead>
+            <TableHead>Lead</TableHead>
+            <TableHead>Updated</TableHead>
+            <TableHead className="text-center">Actions</TableHead>
+          </TableRow>
+        </TableHeader>
         <TableBody className="text-sm text-slate-800">
           {loading ? (
             <TableRow>

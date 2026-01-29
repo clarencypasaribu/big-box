@@ -47,6 +47,7 @@ export default async function MemberProjectPage({ params }: ProjectPageProps) {
           key={project.id}
           projectName={project.name}
           projectId={project.id}
+          currentUserName={profile.name}
         />
       ) : (
         <div className="rounded-2xl border border-slate-200 bg-white p-6 text-sm text-slate-500">

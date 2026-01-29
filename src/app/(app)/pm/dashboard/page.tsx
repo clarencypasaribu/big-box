@@ -3,10 +3,8 @@ import { getCurrentUserProfile } from "@/utils/current-user";
 import { createSupabaseServiceClient } from "@/utils/supabase-service";
 import { ChartData, ProjectDistributionChart } from "@/app/(app)/pm/approvals/project-distribution-chart";
 import { ProjectHealthChart, ProjectHealthData } from "@/app/(app)/pm/dashboard/project-health-chart";
-import { ResourceWorkloadChart, WorkloadItem } from "@/app/(app)/pm/dashboard/resource-workload-chart";
-import { RiskSummaryChart, RiskSummaryData } from "@/app/(app)/pm/dashboard/risk-summary-chart";
-import { ProgressTimelineChart, ProgressPoint } from "@/app/(app)/pm/dashboard/progress-timeline-chart";
-import Link from "next/link";
+import { NeedsAttentionCard, NeedsAttentionItem } from "@/app/(app)/pm/dashboard/needs-attention-card";
+import { ProjectsAttentionTable, ProjectAttention } from "@/app/(app)/pm/dashboard/projects-attention-table";
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -36,19 +34,9 @@ function normalizeStageId(stageId?: string | null) {
 type DashboardData = {
   chartData: ChartData[];
   projectHealth: ProjectHealthData;
-  resourceWorkload: WorkloadItem[];
-  riskSummary: RiskSummaryData;
-  progressTimeline: ProgressPoint[];
-  projectTable: {
-    id: string;
-    name: string;
-    code: string;
-    status: string;
-    progress: number;
-    stage: string;
-    blockers: number;
-    updatedAt: string;
-  }[];
+  needsAttention: NeedsAttentionItem[];
+  projectsRequiringAttention: ProjectAttention[];
+  totalProjects: number;
 };
 
 async function loadDashboardStats(): Promise<DashboardData> {
@@ -59,10 +47,9 @@ async function loadDashboardStats(): Promise<DashboardData> {
   const emptyData: DashboardData = {
     chartData: [],
     projectHealth: { onTrack: 0, atRisk: 0, delayed: 0 },
-    resourceWorkload: [],
-    riskSummary: { open: 0, assigned: 0, resolved: 0 },
-    progressTimeline: [],
-    projectTable: [],
+    needsAttention: [],
+    projectsRequiringAttention: [],
+    totalProjects: 0,
   };
 
   if (!hasSupabaseEnv) return emptyData;
@@ -75,13 +62,16 @@ async function loadDashboardStats(): Promise<DashboardData> {
       { data: allBlockers },
       { data: tasks },
     ] = await Promise.all([
-      supabase.from("projects").select("id,name,progress,status,created_at,start_date,end_date"),
+      supabase.from("projects").select("id,name,code,progress,status,created_at,start_date,end_date,updated_at"),
       supabase.from("project_stage_approvals").select("project_id,stage_id,status,created_at,requested_by"),
       supabase.from("blockers").select("id,status,project_id"),
-      supabase.from("tasks").select("id,title,status,project_id,assignee"),
+      supabase.from("tasks").select("id,title,status,project_id,assignee,due_date"),
     ]);
 
-    // 1. Project Distribution Chart Data (existing)
+    const totalProjects = projects?.length ?? 0;
+    const now = new Date();
+
+    // Build approval/blocker/task maps
     const approvalsByProject = (approvals ?? []).reduce<Record<string, any[]>>((acc, row) => {
       const list = acc[row.project_id] ?? [];
       list.push(row);
@@ -89,15 +79,6 @@ async function loadDashboardStats(): Promise<DashboardData> {
       return acc;
     }, {});
 
-    // Track health status per stage
-    const stageCounts: Record<string, number> = {};
-    const stageHealth: Record<string, { onTrack: number; atRisk: number; delayed: number }> = {};
-    stageDefinitions.forEach((def) => {
-      stageCounts[def.code] = 0;
-      stageHealth[def.code] = { onTrack: 0, atRisk: 0, delayed: 0 };
-    });
-
-    const now = new Date();
     const projectBlockerCounts = (allBlockers ?? []).reduce<Record<string, number>>((acc, b) => {
       if (b.status === "Open") {
         acc[b.project_id] = (acc[b.project_id] ?? 0) + 1;
@@ -105,13 +86,57 @@ async function loadDashboardStats(): Promise<DashboardData> {
       return acc;
     }, {});
 
+    // Overdue tasks per project
+    const overdueTasksByProject = (tasks ?? []).reduce<Record<string, number>>((acc, t) => {
+      if (t.due_date && new Date(t.due_date) < now && t.status?.toLowerCase() !== "done" && t.status?.toLowerCase() !== "completed") {
+        acc[t.project_id] = (acc[t.project_id] ?? 0) + 1;
+      }
+      return acc;
+    }, {});
+
+    // Pending approvals per project
+    const pendingApprovalsByProject = (approvals ?? []).reduce<Record<string, { stageId: string; stageName: string }[]>>((acc, row) => {
+      if (row.status === "Pending" || row.status === "Requested") {
+        const list = acc[row.project_id] ?? [];
+        const stageMeta = stageDefinitions.find(s => s.id === normalizeStageId(row.stage_id));
+        list.push({ stageId: row.stage_id, stageName: stageMeta?.title ?? row.stage_id });
+        acc[row.project_id] = list;
+      }
+      return acc;
+    }, {});
+
+    // Stage counts for distribution chart
+    const stageCounts: Record<string, number> = {};
+    const stageHealth: Record<string, { onTrack: number; atRisk: number; delayed: number }> = {};
+    stageDefinitions.forEach((def) => {
+      stageCounts[def.code] = 0;
+      stageHealth[def.code] = { onTrack: 0, atRisk: 0, delayed: 0 };
+    });
+
+    // Health status
+    let onTrack = 0;
+    let atRisk = 0;
+    let delayed = 0;
+
+    // Process each project
+    const projectDetails: {
+      id: string;
+      name: string;
+      code: string;
+      stage: string;
+      stageCode: string;
+      status: string;
+      hasPendingApproval: boolean;
+      overdueTasks: number;
+      hasBlockers: boolean;
+      updatedAt: Date;
+      healthStatus: "onTrack" | "atRisk" | "delayed";
+    }[] = [];
+
     (projects ?? []).forEach((project) => {
       const stageApprovals = approvalsByProject[project.id] ?? [];
       const approvalsMap = new Map<string, string>();
-
-      stageApprovals.forEach((row) => {
-        approvalsMap.set(normalizeStageId(row.stage_id), row.status ?? "Pending");
-      });
+      stageApprovals.forEach((row) => approvalsMap.set(normalizeStageId(row.stage_id), row.status ?? "Pending"));
 
       let currentStageId = stageOrder[0];
       for (const stage of stageOrder) {
@@ -124,70 +149,144 @@ async function loadDashboardStats(): Promise<DashboardData> {
       const meta = stageDefinitions.find((s) => s.id === currentStageId);
       if (meta && stageCounts[meta.code] !== undefined) {
         stageCounts[meta.code]++;
+      }
 
-        // Determine health status for this project
-        const hasOpenBlockers = (projectBlockerCounts[project.id] ?? 0) > 0;
-        const startDate = project.start_date ? new Date(project.start_date) : null;
-        const endDate = project.end_date ? new Date(project.end_date) : null;
+      // Health status
+      const hasOpenBlockers = (projectBlockerCounts[project.id] ?? 0) > 0;
+      const startDate = project.start_date ? new Date(project.start_date) : null;
+      const endDate = project.end_date ? new Date(project.end_date) : null;
 
-        let expectedProgress = 50;
-        if (startDate && endDate) {
-          const totalDuration = endDate.getTime() - startDate.getTime();
-          const elapsed = Math.max(0, now.getTime() - startDate.getTime());
-          expectedProgress = Math.min(100, Math.round((elapsed / totalDuration) * 100));
-        }
+      let expectedProgress = 50;
+      if (startDate && endDate) {
+        const totalDuration = endDate.getTime() - startDate.getTime();
+        const elapsed = Math.max(0, now.getTime() - startDate.getTime());
+        expectedProgress = Math.min(100, Math.round((elapsed / totalDuration) * 100));
+      }
 
-        const progress = project.progress ?? 0;
-        const status = project.status ?? "In Progress";
+      const progress = project.progress ?? 0;
+      const projectStatus = project.status ?? "In Progress";
 
-        if (hasOpenBlockers || (status === "Not Started" && startDate && now > startDate)) {
-          stageHealth[meta.code].delayed++;
-        } else if (status === "Pending" || progress < expectedProgress - 15) {
-          stageHealth[meta.code].atRisk++;
-        } else {
-          stageHealth[meta.code].onTrack++;
+      let healthStatus: "onTrack" | "atRisk" | "delayed" = "onTrack";
+      if (hasOpenBlockers || (projectStatus === "Not Started" && startDate && now > startDate)) {
+        delayed++;
+        healthStatus = "delayed";
+        if (meta) stageHealth[meta.code].delayed++;
+      } else if (projectStatus === "Pending" || progress < expectedProgress - 15) {
+        atRisk++;
+        healthStatus = "atRisk";
+        if (meta) stageHealth[meta.code].atRisk++;
+      } else {
+        onTrack++;
+        if (meta) stageHealth[meta.code].onTrack++;
+      }
+
+      const hasPendingApproval = (pendingApprovalsByProject[project.id]?.length ?? 0) > 0;
+      const overdueTasks = overdueTasksByProject[project.id] ?? 0;
+
+      projectDetails.push({
+        id: project.id,
+        name: project.name ?? "Untitled",
+        code: project.code ?? project.id,
+        stage: meta ? `${meta.code} - ${meta.title}` : "F1 - Initiation",
+        stageCode: meta?.code ?? "F1",
+        status: projectStatus,
+        hasPendingApproval,
+        overdueTasks,
+        hasBlockers: hasOpenBlockers,
+        updatedAt: project.updated_at ? new Date(project.updated_at) : new Date(project.created_at ?? now),
+        healthStatus,
+      });
+    });
+
+    // Build Needs Attention items (max 5, sorted by priority)
+    const needsAttention: NeedsAttentionItem[] = [];
+
+    // 1. Pending approvals
+    Object.entries(pendingApprovalsByProject).forEach(([projectId, stages]) => {
+      const project = projectDetails.find(p => p.id === projectId);
+      if (project && stages.length > 0) {
+        needsAttention.push({
+          id: `approval-${projectId}`,
+          type: "approval",
+          title: project.name,
+          subtitle: stages[0].stageName,
+          link: `/pm/approvals`,
+        });
+      }
+    });
+
+    // 2. Overdue tasks
+    Object.entries(overdueTasksByProject).forEach(([projectId, count]) => {
+      if (count > 0) {
+        const project = projectDetails.find(p => p.id === projectId);
+        if (project) {
+          needsAttention.push({
+            id: `overdue-${projectId}`,
+            type: "overdue",
+            title: project.name,
+            subtitle: "",
+            link: `/pm/projects/${projectId}`,
+            count,
+          });
         }
       }
     });
 
-    const projectTable = (projects ?? [])
-      .map((project) => {
-        const stageApprovals = approvalsByProject[project.id] ?? [];
-        const approvalsMap = new Map<string, string>();
-        stageApprovals.forEach((row) => approvalsMap.set(normalizeStageId(row.stage_id), row.status ?? "Pending"));
-        let currentStageId = stageOrder[0];
-        for (const stage of stageOrder) {
-          const status = approvalsMap.get(stage);
-          if (status === "Approved") continue;
-          currentStageId = stage;
-          break;
-        }
-        const stageMeta = stageDefinitions.find((s) => s.id === currentStageId);
-        let maxApprovedIndex = -1;
-        stageOrder.forEach((stage, idx) => {
-          if ((approvalsMap.get(stage) ?? "").toLowerCase() === "approved") {
-            maxApprovedIndex = Math.max(maxApprovedIndex, idx);
-          }
+    // 3. Projects at risk
+    projectDetails.filter(p => p.healthStatus === "delayed" || p.healthStatus === "atRisk").forEach(project => {
+      const existing = needsAttention.find(n => n.id.includes(project.id));
+      if (!existing) {
+        needsAttention.push({
+          id: `risk-${project.id}`,
+          type: "risk",
+          title: project.name,
+          subtitle: project.healthStatus === "delayed" ? "Delayed" : "At Risk",
+          link: `/pm/risks`,
+          count: 1,
         });
-        const progress =
-          maxApprovedIndex >= 0
-            ? Math.min(100, Math.round(((maxApprovedIndex + 1) / stageOrder.length) * 100))
-            : 0;
+      }
+    });
 
-        return {
-          id: project.id,
-          name: project.name ?? "Untitled",
-          code: project.code ?? project.id,
-          status: project.status ?? "In Progress",
-          progress,
-          stage: stageMeta ? `${stageMeta.code} - ${stageMeta.title}` : "F1 - Initiation",
-          blockers: projectBlockerCounts[project.id] ?? 0,
-          updatedAt: project.updated_at ?? project.created_at ?? new Date().toISOString(),
-        };
+    // 4. Stale projects (no update for 7 days)
+    const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+    projectDetails.filter(p => p.updatedAt < sevenDaysAgo).forEach(project => {
+      const existing = needsAttention.find(n => n.id.includes(project.id));
+      if (!existing) {
+        needsAttention.push({
+          id: `stale-${project.id}`,
+          type: "stale",
+          title: project.name,
+          subtitle: "No recent updates",
+          link: `/pm/projects/${project.id}`,
+        });
+      }
+    });
+
+    // Sort by priority and limit to 5
+    const priorityOrder = { approval: 0, overdue: 1, risk: 2, stale: 3 };
+    needsAttention.sort((a, b) => priorityOrder[a.type] - priorityOrder[b.type]);
+
+    // Build Projects Requiring Attention (top 3)
+    const projectsRequiringAttention: ProjectAttention[] = projectDetails
+      .filter(p => p.hasPendingApproval || p.overdueTasks > 0 || p.healthStatus !== "onTrack")
+      .sort((a, b) => {
+        if (a.hasPendingApproval !== b.hasPendingApproval) return a.hasPendingApproval ? -1 : 1;
+        if (a.overdueTasks !== b.overdueTasks) return b.overdueTasks - a.overdueTasks;
+        const statusOrder = { delayed: 0, atRisk: 1, onTrack: 2 };
+        return statusOrder[a.healthStatus] - statusOrder[b.healthStatus];
       })
-      .sort((a, b) => b.blockers - a.blockers || b.progress - a.progress)
-      .slice(0, 5);
+      .slice(0, 3)
+      .map(p => ({
+        id: p.id,
+        name: p.name,
+        code: p.code,
+        stage: p.stage,
+        status: p.healthStatus === "delayed" ? "Delayed" : p.healthStatus === "atRisk" ? "At Risk" : p.status,
+        hasPendingApproval: p.hasPendingApproval,
+        overdueTasks: p.overdueTasks,
+      }));
 
+    // Chart data
     const chartData = stageDefinitions.map((def) => ({
       label: def.code,
       subLabel: def.title,
@@ -197,129 +296,14 @@ async function loadDashboardStats(): Promise<DashboardData> {
       delayed: stageHealth[def.code]?.delayed ?? 0,
     }));
 
-    // 2. Project Health Chart Data (reuse now and projectBlockerCounts from above)
-    let onTrack = 0;
-    let atRisk = 0;
-    let delayed = 0;
-
-    (projects ?? []).forEach((project) => {
-      const hasOpenBlockers = (projectBlockerCounts[project.id] ?? 0) > 0;
-      const startDate = project.start_date ? new Date(project.start_date) : null;
-      const endDate = project.end_date ? new Date(project.end_date) : null;
-
-      // Calculate expected progress based on timeline
-      let expectedProgress = 50; // default if no dates
-      if (startDate && endDate) {
-        const totalDuration = endDate.getTime() - startDate.getTime();
-        const elapsed = Math.max(0, now.getTime() - startDate.getTime());
-        expectedProgress = Math.min(100, Math.round((elapsed / totalDuration) * 100));
-      }
-
-      const progress = project.progress ?? 0;
-      const status = project.status ?? "In Progress";
-
-      if (hasOpenBlockers || status === "Not Started" && startDate && now > startDate) {
-        delayed++;
-      } else if (status === "Pending" || progress < expectedProgress - 15) {
-        atRisk++;
-      } else {
-        onTrack++;
-      }
-    });
-
     const projectHealth: ProjectHealthData = { onTrack, atRisk, delayed };
-
-    // 3. Resource Workload Chart Data
-    const assigneeWorkload: Record<string, { toDo: number; inProgress: number }> = {};
-
-    (tasks ?? []).forEach((task) => {
-      const assignee = task.assignee || "Unassigned";
-      if (!assigneeWorkload[assignee]) {
-        assigneeWorkload[assignee] = { toDo: 0, inProgress: 0 };
-      }
-
-      const status = (task.status ?? "").toLowerCase();
-      if (status === "in progress" || status === "in-progress") {
-        assigneeWorkload[assignee].inProgress++;
-      } else if (status === "to do" || status === "todo" || status === "pending" || status === "not started") {
-        assigneeWorkload[assignee].toDo++;
-      }
-    });
-
-    const resourceWorkload: WorkloadItem[] = Object.entries(assigneeWorkload)
-      .filter(([, counts]) => counts.toDo + counts.inProgress > 0)
-      .map(([assignee, counts]) => ({
-        assignee,
-        toDo: counts.toDo,
-        inProgress: counts.inProgress,
-      }));
-
-    // 4. Risk Summary Chart Data
-    const riskCounts = { open: 0, assigned: 0, resolved: 0 };
-    (allBlockers ?? []).forEach((blocker) => {
-      const status = (blocker.status ?? "").toLowerCase();
-      if (status === "open") {
-        riskCounts.open++;
-      } else if (status === "assigned" || status === "investigating" || status === "mitigated") {
-        riskCounts.assigned++;
-      } else if (status === "resolved") {
-        riskCounts.resolved++;
-      }
-    });
-
-    const riskSummary: RiskSummaryData = riskCounts;
-
-    // 5. Progress Timeline Chart Data
-    const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
-    const progressTimeline: ProgressPoint[] = [];
-    const avgProgress =
-      projects && projects.length > 0
-        ? Math.round(projects.reduce((sum, p) => sum + (p.progress ?? 0), 0) / projects.length)
-        : 0;
-    const totalOpenBlockers = Object.values(projectBlockerCounts).reduce((sum, val) => sum + (val ?? 0), 0);
-    const blockerPenalty = Math.min(20, totalOpenBlockers * 2); // reduce expected trend if many blockers
-    const projectsByMonth = (projects ?? []).reduce<Record<string, number>>((acc, p: any) => {
-      const date = p.created_at ? new Date(p.created_at) : null;
-      if (!date || Number.isNaN(date.getTime())) return acc;
-      const key = `${date.getFullYear()}-${date.getMonth()}`;
-      acc[key] = (acc[key] ?? 0) + 1;
-      return acc;
-    }, {});
-
-    // Generate last 6 months of data
-    for (let i = 5; i >= 0; i--) {
-      const date = new Date();
-      date.setMonth(date.getMonth() - i);
-      const monthLabel = months[date.getMonth()];
-      const monthKey = `${date.getFullYear()}-${date.getMonth()}`;
-      const projectCount = projectsByMonth[monthKey] ?? 0;
-
-      const progressRatio = (6 - i) / 6; // 1/6 ... 1
-      const planned = Math.round(progressRatio * 100);
-
-      // Actual is anchored to current average progress and fades back in time, adjusted for blockers.
-      const target = Math.max(0, Math.min(100, avgProgress - blockerPenalty * 0.25));
-      const historicalFade = 1 - Math.pow(progressRatio, 1.5); // older months lower
-      const actual = Math.max(
-        0,
-        Math.min(100, Math.round(target * progressRatio + target * 0.15 * historicalFade))
-      );
-
-      progressTimeline.push({
-        label: monthLabel,
-        planned,
-        actual,
-        projectCount,
-      });
-    }
 
     return {
       chartData,
       projectHealth,
-      resourceWorkload,
-      riskSummary,
-      progressTimeline,
-      projectTable,
+      needsAttention: needsAttention.slice(0, 5),
+      projectsRequiringAttention,
+      totalProjects,
     };
   } catch (error) {
     console.error("Failed to load dashboard data:", error);
@@ -329,21 +313,7 @@ async function loadDashboardStats(): Promise<DashboardData> {
 
 export default async function PMDashboardPage() {
   const profile = await getCurrentUserProfile();
-  const { chartData, projectHealth, resourceWorkload, riskSummary, progressTimeline, projectTable } = await loadDashboardStats();
-
-  let blockerCount = 0;
-  if (profile.id) {
-    try {
-      const supabase = await createSupabaseServiceClient();
-      const { count } = await supabase
-        .from("blockers")
-        .select("id", { count: "exact", head: true })
-        .eq("status", "Open");
-      blockerCount = count ?? 0;
-    } catch {
-      blockerCount = 0;
-    }
-  }
+  const { chartData, projectHealth, needsAttention, projectsRequiringAttention, totalProjects } = await loadDashboardStats();
 
   return (
     <main className="space-y-6">
@@ -354,94 +324,17 @@ export default async function PMDashboardPage() {
         <PMHeaderActions />
       </header>
 
-      {/* Project Distribution Chart */}
-      <ProjectDistributionChart data={chartData} />
+      {/* 1. Needs Attention - only renders if items exist */}
+      {needsAttention.length > 0 && <NeedsAttentionCard items={needsAttention} />}
 
-      {/* Second row: 4 new visualization charts */}
-      <div className="grid gap-5 md:grid-cols-2">
-        <ProjectHealthChart data={projectHealth} />
-        <ResourceWorkloadChart data={resourceWorkload} />
-        <RiskSummaryChart data={riskSummary} />
-        <ProgressTimelineChart data={progressTimeline} />
-      </div>
+      {/* 3. Project Health Status */}
+      <ProjectHealthChart data={projectHealth} />
 
-      <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-        <div className="mb-4 flex items-center justify-between">
-          <div className="space-y-1">
-            <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Key Projects</p>
-            <p className="text-lg font-semibold text-slate-900">Quick view of priority projects</p>
-          </div>
-          <Link
-            href="/pm/projects"
-            className="text-sm font-semibold text-indigo-600 hover:text-indigo-700"
-          >
-            View all projects →
-          </Link>
-        </div>
-        <div className="overflow-x-auto">
-          <table className="min-w-full text-sm text-slate-800">
-            <thead className="bg-slate-50 text-xs uppercase tracking-wide text-slate-500">
-              <tr>
-                <th className="px-4 py-3 text-left">Project</th>
-                <th className="px-4 py-3 text-left">Stage</th>
-                <th className="px-4 py-3 text-left">Status</th>
-                <th className="px-4 py-3 text-left">Progress</th>
-                <th className="px-4 py-3 text-left">Blockers</th>
-                <th className="px-4 py-3 text-left">Updated</th>
-                <th className="px-4 py-3 text-left">Action</th>
-              </tr>
-            </thead>
-            <tbody>
-              {projectTable.length === 0 ? (
-                <tr>
-                  <td colSpan={7} className="px-4 py-5 text-center text-slate-500">
-                    No project data yet.
-                  </td>
-                </tr>
-              ) : (
-                projectTable.map((project) => (
-                  <tr key={project.id} className="border-t border-slate-100 hover:bg-slate-50/60">
-                    <td className="px-4 py-3">
-                      <div className="font-semibold text-slate-900">{project.name}</div>
-                      <div className="text-xs text-slate-500">{project.code}</div>
-                    </td>
-                    <td className="px-4 py-3">{project.stage}</td>
-                    <td className="px-4 py-3">
-                      <span className="rounded-full bg-slate-100 px-2 py-1 text-xs font-semibold text-slate-700">
-                        {project.status}
-                      </span>
-                    </td>
-                    <td className="px-4 py-3">
-                      <div className="flex items-center gap-2">
-                        <div className="h-2 w-24 rounded-full bg-slate-200">
-                          <div
-                            className="h-2 rounded-full bg-indigo-600"
-                            style={{ width: `${Math.min(100, Math.max(0, project.progress))}%` }}
-                          />
-                        </div>
-                        <span className="text-xs font-semibold text-slate-700">{project.progress}%</span>
-                      </div>
-                    </td>
-                    <td className="px-4 py-3">
-                      <span className={`rounded-full px-2 py-1 text-xs font-semibold ${project.blockers > 0 ? "bg-rose-50 text-rose-700" : "bg-emerald-50 text-emerald-700"}`}>
-                        {project.blockers} blocker{project.blockers === 1 ? "" : "s"}
-                      </span>
-                    </td>
-                    <td className="px-4 py-3 text-xs text-slate-500">
-                      {new Date(project.updatedAt).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" })}
-                    </td>
-                    <td className="px-4 py-3">
-                      <Link href={`/pm/projects/${encodeURIComponent(project.id)}`} className="text-sm font-semibold text-indigo-600 hover:text-indigo-700">
-                        View
-                      </Link>
-                    </td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        </div>
-      </div>
+      {/* 4. Projects Requiring Attention (Top 3) */}
+      <ProjectsAttentionTable projects={projectsRequiringAttention} />
+
+      {/* 5. Project Distribution - conditional (≥3 projects) */}
+      {totalProjects >= 3 && <ProjectDistributionChart data={chartData} />}
     </main>
   );
 }

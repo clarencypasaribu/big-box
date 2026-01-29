@@ -12,6 +12,15 @@ export type ProgressPoint = {
 
 export function ProgressTimelineChart({ data }: { data: ProgressPoint[] }) {
     const [hovered, setHovered] = useState<number | null>(null);
+    const [mousePos, setMousePos] = useState({ x: 0, y: 0 });
+
+    const handleMouseMove = (e: React.MouseEvent) => {
+        const rect = e.currentTarget.getBoundingClientRect();
+        setMousePos({
+            x: e.clientX - rect.left,
+            y: e.clientY - rect.top,
+        });
+    };
 
     if (data.length === 0) {
         return (
@@ -79,128 +88,155 @@ export function ProgressTimelineChart({ data }: { data: ProgressPoint[] }) {
                 </CardTitle>
             </CardHeader>
             <CardContent>
-                <svg width="100%" viewBox={`0 0 ${chartWidth} ${chartHeight}`} className="overflow-visible">
-                    {/* Gradient definitions */}
-                    <defs>
-                        <linearGradient id="areaGradient" x1="0%" y1="0%" x2="0%" y2="100%">
-                            <stop offset="0%" stopColor="#8b5cf6" stopOpacity="0.3" />
-                            <stop offset="100%" stopColor="#8b5cf6" stopOpacity="0.02" />
-                        </linearGradient>
-                        <linearGradient id="lineGradient" x1="0%" y1="0%" x2="100%" y2="0%">
-                            <stop offset="0%" stopColor="#7c3aed" />
-                            <stop offset="100%" stopColor="#a78bfa" />
-                        </linearGradient>
-                    </defs>
+                <div className="relative" onMouseLeave={() => setHovered(null)} onMouseMove={handleMouseMove}>
+                    <svg width="100%" viewBox={`0 0 ${chartWidth} ${chartHeight}`} className="overflow-visible">
+                        {/* Gradient definitions */}
+                        <defs>
+                            <linearGradient id="areaGradient" x1="0%" y1="0%" x2="0%" y2="100%">
+                                <stop offset="0%" stopColor="#8b5cf6" stopOpacity="0.3" />
+                                <stop offset="100%" stopColor="#8b5cf6" stopOpacity="0.02" />
+                            </linearGradient>
+                            <linearGradient id="lineGradient" x1="0%" y1="0%" x2="100%" y2="0%">
+                                <stop offset="0%" stopColor="#7c3aed" />
+                                <stop offset="100%" stopColor="#a78bfa" />
+                            </linearGradient>
+                        </defs>
 
-                    {/* Y-axis grid lines */}
-                    {[0, 25, 50, 75, 100].map((val) => {
-                        const y = padding.top + innerHeight - (val / 100) * innerHeight;
-                        return (
-                            <g key={val}>
-                                <line
-                                    x1={padding.left}
-                                    y1={y}
-                                    x2={chartWidth - padding.right}
-                                    y2={y}
-                                    stroke="#e2e8f0"
-                                    strokeWidth="1"
-                                    strokeDasharray={val === 0 ? "0" : "4 4"}
+                        {/* Y-axis grid lines */}
+                        {[0, 25, 50, 75, 100].map((val) => {
+                            const y = padding.top + innerHeight - (val / 100) * innerHeight;
+                            return (
+                                <g key={val}>
+                                    <line
+                                        x1={padding.left}
+                                        y1={y}
+                                        x2={chartWidth - padding.right}
+                                        y2={y}
+                                        stroke="#e2e8f0"
+                                        strokeWidth="1"
+                                        strokeDasharray={val === 0 ? "0" : "4 4"}
+                                    />
+                                    <text
+                                        x={padding.left - 8}
+                                        y={y + 4}
+                                        textAnchor="end"
+                                        className="fill-slate-400 text-[10px] font-medium"
+                                    >
+                                        {val}%
+                                    </text>
+                                </g>
+                            );
+                        })}
+
+                        {/* Area under actual line */}
+                        <path
+                            d={actualAreaPath}
+                            fill="url(#areaGradient)"
+                        />
+
+                        {/* Planned line (dashed) */}
+                        <path
+                            d={plannedPath}
+                            fill="none"
+                            stroke="#94a3b8"
+                            strokeWidth="2"
+                            strokeDasharray="6 4"
+                            strokeLinecap="round"
+                            className="transition-all duration-500"
+                        />
+
+                        {/* Actual line */}
+                        <path
+                            d={actualPath}
+                            fill="none"
+                            stroke="url(#lineGradient)"
+                            strokeWidth="3"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            className="transition-all duration-500 drop-shadow-sm"
+                        />
+
+                        {/* Data points on actual line */}
+                        {actualPoints.map((point, i) => (
+                            <g
+                                key={i}
+                                className="group"
+                                onMouseEnter={() => setHovered(i)}
+                                onMouseLeave={() => setHovered(null)}
+                            >
+                                <circle
+                                    cx={point.x}
+                                    cy={point.y}
+                                    r="8"
+                                    fill="transparent"
+                                    className="cursor-pointer"
                                 />
-                                <text
-                                    x={padding.left - 8}
-                                    y={y + 4}
-                                    textAnchor="end"
-                                    className="fill-slate-400 text-[10px] font-medium"
-                                >
-                                    {val}%
-                                </text>
+                                <circle
+                                    cx={point.x}
+                                    cy={point.y}
+                                    r="5"
+                                    fill="white"
+                                    stroke="#8b5cf6"
+                                    strokeWidth="2.5"
+                                    className="transition-all duration-200 drop-shadow-sm"
+                                />
                             </g>
-                        );
-                    })}
+                        ))}
 
-                    {/* Area under actual line */}
-                    <path
-                        d={actualAreaPath}
-                        fill="url(#areaGradient)"
-                    />
+                        {/* X-axis labels */}
+                        {data.map((d, i) => (
+                            <text
+                                key={i}
+                                x={padding.left + i * pointSpacing}
+                                y={chartHeight - 10}
+                                textAnchor="middle"
+                                className="fill-slate-500 text-[11px] font-medium"
+                            >
+                                {d.label}
+                            </text>
+                        ))}
+                    </svg>
 
-                    {/* Planned line (dashed) */}
-                    <path
-                        d={plannedPath}
-                        fill="none"
-                        stroke="#94a3b8"
-                        strokeWidth="2"
-                        strokeDasharray="6 4"
-                        strokeLinecap="round"
-                        className="transition-all duration-500"
-                    />
-
-                    {/* Actual line */}
-                    <path
-                        d={actualPath}
-                        fill="none"
-                        stroke="url(#lineGradient)"
-                        strokeWidth="3"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        className="transition-all duration-500 drop-shadow-sm"
-                    />
-
-                    {/* Data points on actual line */}
-                    {actualPoints.map((point, i) => (
-                        <g
-                            key={i}
-                            className="group"
-                            onMouseEnter={() => setHovered(i)}
-                            onMouseLeave={() => setHovered(null)}
+                    {/* Floating Tooltip */}
+                    {hovered !== null && data[hovered] && (
+                        <div
+                            className="pointer-events-none absolute z-50 rounded-lg border border-slate-200 bg-white p-3 shadow-xl ring-1 ring-slate-100 transition-opacity duration-150"
+                            style={{
+                                left: padding.left + hovered * pointSpacing, // Snap to point X
+                                top: padding.top + innerHeight - (data[hovered].actual / 100) * innerHeight, // Snap to point Y
+                                transform: 'translate(-50%, -120%)', // Center above point
+                                minWidth: "160px"
+                            }}
                         >
-                            <circle
-                                cx={point.x}
-                                cy={point.y}
-                                r="8"
-                                fill="transparent"
-                                className="cursor-pointer"
-                            />
-                            <circle
-                                cx={point.x}
-                                cy={point.y}
-                                r="5"
-                                fill="white"
-                                stroke="#8b5cf6"
-                                strokeWidth="2.5"
-                                className="transition-all duration-200 drop-shadow-sm"
-                            />
-                        </g>
-                    ))}
-
-                    {/* X-axis labels */}
-                    {data.map((d, i) => (
-                        <text
-                            key={i}
-                            x={padding.left + i * pointSpacing}
-                            y={chartHeight - 10}
-                            textAnchor="middle"
-                            className="fill-slate-500 text-[11px] font-medium"
-                        >
-                            {d.label}
-                        </text>
-                    ))}
-                </svg>
-
-                <div className="mt-3 text-center text-xs font-semibold text-slate-600">
-                    {hovered !== null ? (
-                        <>
-                            {data[hovered].label}: {data[hovered].actual}% actual • {data[hovered].planned}% planned
-                            {typeof data[hovered].projectCount === "number"
-                                ? ` • ${data[hovered].projectCount} project${data[hovered].projectCount === 1 ? "" : "s"}`
-                                : ""}
-                        </>
-                    ) : (
-                        "Hover a point to see project count per month"
+                            <p className="mb-2 text-xs font-bold uppercase tracking-wider text-slate-500 border-b border-slate-100 pb-1">
+                                {data[hovered].label}
+                            </p>
+                            <div className="space-y-1">
+                                <div className="flex items-center justify-between gap-4 text-xs">
+                                    <span className="flex items-center gap-1.5 font-medium text-slate-600">
+                                        <span className="size-2 rounded-full bg-violet-500"></span>
+                                        Actual
+                                    </span>
+                                    <span className="font-bold text-slate-900">{data[hovered].actual}%</span>
+                                </div>
+                                <div className="flex items-center justify-between gap-4 text-xs">
+                                    <span className="flex items-center gap-1.5 font-medium text-slate-500">
+                                        <div className="h-0.5 w-2 rounded bg-slate-400" />
+                                        Planned
+                                    </span>
+                                    <span className="font-semibold text-slate-600">{data[hovered].planned}%</span>
+                                </div>
+                                {typeof data[hovered].projectCount === "number" && (
+                                    <div className="mt-1.5 pt-1.5 border-t border-slate-50 flex items-center justify-between gap-4 text-xs">
+                                        <span className="font-medium text-slate-500">Projects</span>
+                                        <span className="font-bold text-slate-800">{data[hovered].projectCount}</span>
+                                    </div>
+                                )}
+                            </div>
+                        </div>
                     )}
                 </div>
 
-                {/* Legend */}
                 <div className="mt-4 flex items-center justify-center gap-8 border-t border-slate-100 pt-4">
                     <div className="flex items-center gap-2">
                         <div className="flex items-center">

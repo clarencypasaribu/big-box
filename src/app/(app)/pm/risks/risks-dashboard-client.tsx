@@ -42,7 +42,7 @@ export function RisksDashboardClient({
       {
         label: "Total Active Blocker",
         value: counts.active,
-        trend: `${counts.active} active`,
+        trend: "",
         trendColor: "text-rose-600",
         icon: ShieldAlert,
         accent: "bg-rose-50 text-rose-600",
@@ -50,7 +50,7 @@ export function RisksDashboardClient({
       {
         label: "Critical Risks",
         value: counts.critical,
-        trend: `${counts.critical} > 3 days`,
+        trend: "",
         trendColor: "text-amber-600",
         icon: AlertTriangle,
         accent: "bg-amber-50 text-amber-600",
@@ -58,7 +58,7 @@ export function RisksDashboardClient({
       {
         label: "Resolved Today",
         value: counts.resolved,
-        trend: `+${counts.resolved} closed`,
+        trend: "",
         trendColor: "text-emerald-600",
         icon: LayoutDashboard,
         accent: "bg-emerald-50 text-emerald-600",

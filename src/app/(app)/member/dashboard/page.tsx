@@ -1,11 +1,13 @@
-import { DashboardSearch } from "@/components/dashboard-search";
+import { NotificationBell } from "@/components/notification-bell";
 import { getCurrentUserProfile } from "@/utils/current-user";
-import { MemberSidebar } from "@/components/member-sidebar";
-import { QuickActionsClient } from "@/app/(app)/member/dashboard/quick-actions-client";
+
 import { StatsCardsClient } from "@/app/(app)/member/dashboard/stats-cards-client";
 import { UrgentTasksClient } from "@/app/(app)/member/dashboard/urgent-tasks-client";
+import { WorkloadChart } from "@/app/(app)/member/dashboard/workload-chart";
+import { DeadlineChart } from "@/app/(app)/member/dashboard/deadline-chart";
+import { BlockerPreviewClient } from "@/app/(app)/member/dashboard/blocker-preview-client";
+
 import { getMemberProjects } from "@/utils/member-projects";
-import { NotificationsClient } from "@/app/(app)/member/dashboard/notifications-client";
 
 export default async function MemberDashboardPage() {
   const profile = await getCurrentUserProfile();
@@ -23,19 +25,22 @@ export default async function MemberDashboardPage() {
           </p>
         </div>
 
-        <div className="relative flex w-full max-w-sm items-center gap-4">
-          <DashboardSearch />
+        <div className="flex items-center gap-3">
+          <NotificationBell />
         </div>
       </header>
 
+      <BlockerPreviewClient />
+
       <StatsCardsClient projects={memberProjects} />
 
-      <div className="grid gap-4 xl:grid-cols-[1.4fr,1fr]">
-        <QuickActionsClient projects={memberProjects} />
-        <NotificationsClient onlyToday={false} limit={4} showFooterLink groupByDate />
+      {/* Productivity Charts */}
+      <div className="grid gap-4 md:grid-cols-2">
+        <WorkloadChart projects={memberProjects} />
+        <DeadlineChart projects={memberProjects} />
       </div>
 
       <UrgentTasksClient projects={memberProjects} />
-    </section>
+    </section >
   );
 }

@@ -49,8 +49,11 @@ export function ProjectDistributionChart({ data }: { data: ChartData[] }) {
                                 <div className="relative h-8 flex-1 overflow-hidden rounded-md bg-slate-100">
                                     {item.value > 0 && (
                                         <div
-                                            className="absolute inset-y-0 left-0 flex items-center rounded-md bg-gradient-to-r from-violet-500 to-purple-500 px-3 transition-all duration-500"
-                                            style={{ width: `${barWidth}%` }}
+                                            className="absolute inset-y-0 left-0 flex items-center rounded-md px-3 transition-all duration-500"
+                                            style={{
+                                                width: `${barWidth}%`,
+                                                background: 'linear-gradient(to right, #8b5cf6, #a855f7)',
+                                            }}
                                         >
                                             <span className="text-sm font-bold text-white">{item.value}</span>
                                         </div>

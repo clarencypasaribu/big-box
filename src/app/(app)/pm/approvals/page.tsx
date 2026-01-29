@@ -103,15 +103,32 @@ async function loadApprovalsFromDb(): Promise<{
       return acc;
     }, {});
 
-    const tasksByProject = (tasks ?? []).reduce<Record<string, number>>((acc, row) => {
-      acc[row.project_id] = (acc[row.project_id] || 0) + 1;
+    const tasksByProject = (tasks ?? []).reduce<Record<string, any[]>>((acc, row) => {
+      const list = acc[row.project_id] ?? [];
+      list.push(row);
+      acc[row.project_id] = list;
       return acc;
     }, {});
 
-
-
     const approvalsMapped = (projects ?? [])
-      .filter((project) => (tasksByProject[project.id] ?? 0) > 0) // Filter projects without tasks
+      .filter((project) => {
+        const projectTasks = tasksByProject[project.id] ?? [];
+
+        // Requirement: "jika semua task dari semua team member selesai"
+        // Interpretation: Project must have valid tasks, and ALL of them must be finished.
+        if (projectTasks.length === 0) return false;
+
+        const allTasksCompleted = projectTasks.every(
+          (t) => t.status === "Done" || t.status === "Completed"
+        );
+
+        // Additionally: "jika belum selesai dan belum mengirim approval maka tidak masuk"
+        // This implies if they SENT approval (even if tasks incomplete?) -> show?
+        // User said: "approval state masuk ke halaman itu jika semua task... selesai"
+        // So strict "All tasks completed" seems to be the primary gate.
+
+        return allTasksCompleted;
+      })
       .map((project) => {
         const stageApprovals = approvalsByProject[project.id] ?? [];
         const normalizedStatuses = stageApprovals.map((row) => ({

@@ -292,9 +292,9 @@ export function RisksClient({
 
                   <div className="space-y-2">
                     <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Detailed Description</p>
-                    <p className="rounded-lg border border-slate-200 bg-slate-50 p-3 text-sm text-slate-700">
-                      {selectedRisk.description}
-                    </p>
+                    <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 text-sm text-slate-700 whitespace-pre-wrap">
+                      {selectedRisk.description || <span className="text-slate-400 italic">No detailed description provided.</span>}
+                    </div>
                   </div>
 
                   <div className="space-y-2">
@@ -320,10 +320,7 @@ export function RisksClient({
                     </div>
                   </div>
 
-                  <div className="flex items-center gap-3 rounded-lg border border-slate-200 bg-white px-3 py-2 shadow-sm">
-                    <Send className="size-4 text-indigo-600" />
-                    <p className="text-sm text-slate-700">Add a comment or update for the team.</p>
-                  </div>
+
                 </div>
 
                 <div className="space-y-4 rounded-xl border border-slate-200 bg-slate-50 p-4">
@@ -354,7 +351,7 @@ export function RisksClient({
                     </div>
                   </div>
 
-                  <div className="flex flex-col gap-2">
+                  <div className="flex flex-col gap-3">
                     <Button variant="outline" className="justify-between" onClick={openAssign}>
                       <div className="flex items-center gap-2">
                         <UserRound className="size-4" />
@@ -362,9 +359,27 @@ export function RisksClient({
                       </div>
                       <ArrowRight className="size-4" />
                     </Button>
-                    <Button className="bg-emerald-600 text-white hover:bg-emerald-700" onClick={closeDetail}>
-                      Done
-                    </Button>
+
+                    <div className="space-y-2">
+                      <Button
+                        className={cn(
+                          "w-full text-white",
+                          (!selectedRisk.assignee || selectedRisk.assignee === "Unassigned")
+                            ? "bg-emerald-300 cursor-not-allowed opacity-70"
+                            : "bg-emerald-600 hover:bg-emerald-700"
+                        )}
+                        onClick={closeDetail}
+                        disabled={!selectedRisk.assignee || selectedRisk.assignee === "Unassigned"}
+                      >
+                        <CheckCircle2 className="mr-2 size-4" />
+                        Resolve Blocker
+                      </Button>
+                      {(!selectedRisk.assignee || selectedRisk.assignee === "Unassigned") && (
+                        <p className="text-center text-[10px] text-amber-600 font-medium">
+                          ⚠️ Assign a member before resolving
+                        </p>
+                      )}
+                    </div>
                   </div>
                 </div>
               </div>

@@ -23,16 +23,19 @@ type StatCard = {
 export function ProjectsDashboardClient({
   initialProjects,
   stats,
+  leads = [],
+  members = [],
 }: {
   initialProjects: ProjectRow[];
   stats: ProjectStats;
+  leads?: string[];
+  members?: string[];
 }) {
   const [searchQuery, setSearchQuery] = useState("");
 
   const statCards: StatCard[] = useMemo(
     () => [
       { label: "Total Projects", value: stats.total, icon: Folder, accent: "bg-indigo-50 text-indigo-600" },
-      { label: "Upcoming Deadlines", value: stats.upcomingDeadlines, icon: AlarmClock, accent: "bg-amber-50 text-amber-600" },
       { label: "At Risk", value: stats.atRisk, icon: AlertTriangle, accent: "bg-rose-50 text-rose-600" },
     ],
     [stats]
@@ -51,12 +54,12 @@ export function ProjectsDashboardClient({
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             className="h-10 w-full rounded-lg border-slate-200 bg-white pl-10 text-sm ring-offset-white focus-visible:ring-indigo-600"
-            placeholder="Search projects..."
+            placeholder="Search by project name or ID"
           />
         </div>
       </div>
 
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+      <div className="grid gap-4 sm:grid-cols-2">
         {statCards.map((stat) => (
           <Card key={stat.label} className="border-slate-200 shadow-sm">
             <CardContent className="flex items-center justify-between gap-4 p-5">
@@ -72,7 +75,12 @@ export function ProjectsDashboardClient({
         ))}
       </div>
 
-      <ProjectsClient initialProjects={initialProjects} searchQuery={searchQuery} />
+      <ProjectsClient
+        initialProjects={initialProjects}
+        initialLeads={leads}
+        initialMembers={members}
+        searchQuery={searchQuery}
+      />
     </div>
   );
 }

@@ -4,6 +4,9 @@ import { getMemberProjects } from "@/utils/member-projects";
 import { BlockersListClient } from "./blockers-list-client";
 
 export default async function MemberBlockersPage() {
+    const profile = await getCurrentUserProfile();
+    const projects = await getMemberProjects(profile.id);
+
     return (
         <section className="space-y-6">
             <header>
@@ -13,7 +16,7 @@ export default async function MemberBlockersPage() {
                 </p>
             </header>
 
-            <BlockersListClient />
+            <BlockersListClient projects={projects} />
         </section>
     );
 }

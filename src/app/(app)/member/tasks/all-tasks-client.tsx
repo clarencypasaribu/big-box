@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState, useCallback } from "react";
-import { MoveRight, FileText, AlertTriangle, Paperclip, X } from "lucide-react";
+import { MoveRight, FileText, AlertTriangle, Paperclip, X, LayoutGrid, List, ChevronDown, Eye, EyeOff } from "lucide-react";
 import Link from "next/link";
 
 import { Badge } from "@/components/ui/badge";
@@ -13,6 +13,20 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -74,9 +88,23 @@ const productCategories = [
   "Other",
 ];
 
+const STATUS_OPTIONS = ["Not Started", "In Progress", "Done"] as const;
+
 export function AllTasksClient({ projects }: { projects: ProjectRef[] }) {
   const [tasks, setTasks] = useState<TaskItem[]>([]);
   const [loading, setLoading] = useState(true);
+  const [viewMode, setViewMode] = useState<"grid" | "list">("list");
+  const [hideCompleted, setHideCompleted] = useState(false);
+
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const savedMode = localStorage.getItem("tasks-view-mode") as "grid" | "list";
+      if (savedMode) {
+        setViewMode(savedMode);
+      }
+    }
+  }, []);
+  const [updatingTaskId, setUpdatingTaskId] = useState<string | null>(null);
 
   // Submit Deliverables Dialog State
   const [deliverableOpen, setDeliverableOpen] = useState(false);
@@ -151,6 +179,37 @@ export function AllTasksClient({ projects }: { projects: ProjectRef[] }) {
   useEffect(() => {
     fetchAllTasks();
   }, [fetchAllTasks]);
+
+  const handleViewModeChange = (mode: "grid" | "list") => {
+    setViewMode(mode);
+    if (typeof window !== "undefined") {
+      localStorage.setItem("tasks-view-mode", mode);
+    }
+  };
+
+  const handleQuickStatusUpdate = async (task: TaskItem, newStatus: string) => {
+    setUpdatingTaskId(task.id);
+    try {
+      const res = await fetch(`/api/project-tasks/${task.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status: newStatus }),
+      });
+      if (res.ok) {
+        // Update local state
+        const isDone = newStatus === "Done" || newStatus === "Completed";
+        setTasks(prev => prev.map(t =>
+          t.id === task.id
+            ? { ...t, status: isDone ? "Completed" : newStatus, done: isDone }
+            : t
+        ));
+      }
+    } catch (error) {
+      console.error("Failed to update task status:", error);
+    } finally {
+      setUpdatingTaskId(null);
+    }
+  };
 
   const handleOpenDeliverable = (task: TaskItem) => {
     setDeliverableTask(task);
@@ -261,23 +320,64 @@ export function AllTasksClient({ projects }: { projects: ProjectRef[] }) {
     []
   );
 
+  const filteredTasks = useMemo(() => {
+    if (hideCompleted) {
+      return tasks.filter(t => !t.done);
+    }
+    return tasks;
+  }, [tasks, hideCompleted]);
+
   const firstProjectId = projects[0]?.id;
 
   return (
     <>
       <Card className="border-slate-200 shadow-sm">
-        <CardHeader className="flex flex-row items-center justify-between">
+        <CardHeader className="flex flex-row items-center justify-between gap-2">
           <CardTitle className="text-lg">All Tasks</CardTitle>
-          {firstProjectId && (
-            <Button asChild variant="ghost" size="sm" className="text-slate-600">
-              <Link href={`/member/project/${firstProjectId}`}>
-                View project board
-                <MoveRight className="size-4" />
-              </Link>
+          <div className="flex items-center gap-2">
+            {/* Hide Completed Toggle */}
+            <Button
+              variant="outline"
+              size="sm"
+              className={cn("h-7 gap-2 px-2 text-xs", hideCompleted && "bg-slate-100 text-slate-700")}
+              onClick={() => setHideCompleted(!hideCompleted)}
+            >
+              {hideCompleted ? <EyeOff className="size-3.5" /> : <Eye className="size-3.5" />}
+              <span className="hidden sm:inline">{hideCompleted ? "Hidden" : "Show All"}</span>
             </Button>
-          )}
+
+            {/* View Mode Toggle */}
+            <div className="flex items-center rounded-lg border border-slate-200 p-0.5">
+              <Button
+                variant={viewMode === "grid" ? "secondary" : "ghost"}
+                size="sm"
+                className="h-7 px-2"
+                onClick={() => handleViewModeChange("grid")}
+                title="Task Focus Mode"
+              >
+                <LayoutGrid className="size-4" />
+              </Button>
+              <Button
+                variant={viewMode === "list" ? "secondary" : "ghost"}
+                size="sm"
+                className="h-7 px-2"
+                onClick={() => handleViewModeChange("list")}
+                title="Table View"
+              >
+                <List className="size-4" />
+              </Button>
+            </div>
+            {firstProjectId && (
+              <Button asChild variant="ghost" size="sm" className="text-slate-600">
+                <Link href={`/member/project/${firstProjectId}`}>
+                  View project board
+                  <MoveRight className="size-4" />
+                </Link>
+              </Button>
+            )}
+          </div>
         </CardHeader>
-        <CardContent className="grid gap-4 md:grid-cols-2">
+        <CardContent className={viewMode === "list" ? "p-0" : "grid gap-4 md:grid-cols-2"}>
           {loading ? (
             <div className="rounded-xl border border-slate-200 bg-white p-4 text-sm text-slate-500 md:col-span-2">
               Loading tasks...
@@ -286,8 +386,101 @@ export function AllTasksClient({ projects }: { projects: ProjectRef[] }) {
             <div className="rounded-xl border border-slate-200 bg-white p-4 text-sm text-slate-500 md:col-span-2">
               {emptyMessage}
             </div>
+          ) : viewMode === "list" ? (
+            /* List View using Table */
+            <Table>
+              <TableHeader>
+                <TableRow className="hover:bg-transparent">
+                  <TableHead className="w-[30%]">Task</TableHead>
+                  <TableHead>Project</TableHead>
+                  <TableHead>Stage</TableHead>
+                  <TableHead>Priority</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead className="text-right">Actions</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {filteredTasks.map((task) => (
+                  <TableRow key={`${task.projectId}-${task.id}`} className={task.done ? "bg-slate-50/50" : undefined}>
+                    <TableCell>
+                      <div className="flex flex-col">
+                        <span className={cn("font-medium text-slate-900", task.done && "text-slate-500 line-through")}>
+                          {task.title}
+                        </span>
+                        {task.dueDate && (
+                          <span className="text-xs text-slate-500">
+                            Due {new Date(task.dueDate).toLocaleDateString("id-ID", { day: "numeric", month: "short" })}
+                          </span>
+                        )}
+                      </div>
+                    </TableCell>
+                    <TableCell className="text-slate-600">{task.project}</TableCell>
+                    <TableCell className="text-slate-600">{task.stage}</TableCell>
+                    <TableCell>
+                      <Badge className={cn("text-xs font-medium border-0", task.priority ? priorityTone[task.priority] : "bg-slate-100 text-slate-600")}>
+                        {task.priority || "None"}
+                      </Badge>
+                    </TableCell>
+                    <TableCell>
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild disabled={task.done || updatingTaskId === task.id}>
+                          <Button variant="ghost" size="sm" className={cn("-ml-3 h-8 gap-1 text-xs font-normal", task.status === "Completed" ? "text-emerald-600" : "text-slate-700")}>
+                            {updatingTaskId === task.id ? (
+                              <span className="animate-pulse">Updating...</span>
+                            ) : (
+                              <>
+                                {task.status}
+                                <ChevronDown className="size-3 opacity-50" />
+                              </>
+                            )}
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="start">
+                          {STATUS_OPTIONS.map((status) => (
+                            <DropdownMenuItem
+                              key={status}
+                              onClick={() => handleQuickStatusUpdate(task, status)}
+                              className={task.status === status ? "bg-slate-100" : ""}
+                            >
+                              {status}
+                            </DropdownMenuItem>
+                          ))}
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <div className="flex justify-end gap-1">
+                        {!task.done && (
+                          <>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="size-8 text-slate-500 hover:text-indigo-600 hover:bg-indigo-50"
+                              onClick={() => handleOpenDeliverable(task)}
+                              title="View / Submit Deliverables"
+                            >
+                              <FileText className="size-4" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="size-8 text-slate-500 hover:text-rose-600 hover:bg-rose-50"
+                              onClick={() => handleOpenBlocker(task)}
+                              title="Report Blocker"
+                            >
+                              <AlertTriangle className="size-4" />
+                            </Button>
+                          </>
+                        )}
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
           ) : (
-            tasks.map((task) => (
+            /* Grid View */
+            filteredTasks.map((task) => (
               <div
                 key={`${task.projectId}-${task.id}`}
                 className={cn(
@@ -313,9 +506,26 @@ export function AllTasksClient({ projects }: { projects: ProjectRef[] }) {
                     >
                       {task.priority ? `${task.priority} Priority` : "No Priority"}
                     </Badge>
-                    <Badge variant="outline" className={cn("rounded-md", statusTone[task.status] ?? "text-slate-700")}>
-                      {task.status}
-                    </Badge>
+                    {/* Quick Status Dropdown */}
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild disabled={task.done || updatingTaskId === task.id}>
+                        <Button variant="outline" size="sm" className="h-6 gap-1 text-xs px-2">
+                          {updatingTaskId === task.id ? "..." : task.status}
+                          <ChevronDown className="size-3" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end">
+                        {STATUS_OPTIONS.map((status) => (
+                          <DropdownMenuItem
+                            key={status}
+                            onClick={() => handleQuickStatusUpdate(task, status)}
+                            className={task.status === status ? "bg-slate-100" : ""}
+                          >
+                            {status}
+                          </DropdownMenuItem>
+                        ))}
+                      </DropdownMenuContent>
+                    </DropdownMenu>
                   </div>
                 </div>
                 <div className="relative z-10 flex items-center justify-between text-xs text-slate-600">

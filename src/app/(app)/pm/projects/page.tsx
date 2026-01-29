@@ -93,17 +93,18 @@ async function loadProjects(): Promise<ProjectRow[]> {
 }
 
 export default async function PMProjectsPage() {
-  const projects = await loadProjects();
+  const supabase = await createSupabaseServiceClient();
+
+  // Parallel fetch: projects, blockers, profiles
+  const [projects, { data: riskyProjects }, { data: profiles }] = await Promise.all([
+    loadProjects(),
+    supabase.from("blockers").select("project_id").eq("status", "Open"),
+    supabase.from("profiles").select("id, full_name, email, role").order("full_name")
+  ]);
+
   const now = new Date();
   const in7Days = new Date();
   in7Days.setDate(now.getDate() + 7);
-
-  // Fetch projects with open blockers
-  const supabase = await createSupabaseServiceClient();
-  const { data: riskyProjects } = await supabase
-    .from("blockers")
-    .select("project_id")
-    .eq("status", "Open");
 
   const distinctRiskyProjectIds = new Set(riskyProjects?.map((r: any) => r.project_id));
 
@@ -113,7 +114,7 @@ export default async function PMProjectsPage() {
     const end = new Date(p.endDate);
     if (Number.isNaN(end.getTime())) return false;
     return end >= now && end <= in7Days;
-  }).length; 
+  }).length;
   const atRisk = projects.filter((p) => distinctRiskyProjectIds.has(p.id)).length;
 
   const stats = {
@@ -122,9 +123,33 @@ export default async function PMProjectsPage() {
     atRisk,
   };
 
+  // Process profiles
+  const leads: string[] = [];
+  const members: string[] = [];
+
+  (profiles ?? []).forEach((p: any) => {
+    const name = p.full_name || p.email || "Unknown";
+    const role = (p.role || "").toLowerCase().trim();
+
+    if (role === "project manager" || role === "project_manager" || role === "pm") {
+      leads.push(name);
+    } else if (role === "team member" || role === "team_member") {
+      members.push(name);
+    }
+  });
+
+  // Remove duplicates and sort
+  const uniqueLeads = Array.from(new Set(leads)).sort();
+  const uniqueMembers = Array.from(new Set(members)).sort();
+
   return (
     <main className="space-y-6">
-      <ProjectsDashboardClient initialProjects={projects} stats={stats} />
+      <ProjectsDashboardClient
+        initialProjects={projects}
+        stats={stats}
+        leads={uniqueLeads}
+        members={uniqueMembers}
+      />
     </main>
   );
 }

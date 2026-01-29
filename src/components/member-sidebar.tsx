@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useMemo } from "react";
 import { usePathname, useRouter } from "next/navigation";
-import { AlertTriangle, Bell, CheckSquare, SquareChartGantt } from "lucide-react";
+import { AlertTriangle, CheckSquare, SquareChartGantt } from "lucide-react";
 
 import { SidebarProfile } from "@/components/sidebar-profile";
 import { cn } from "@/lib/utils";
@@ -15,7 +15,7 @@ export type MemberProjectItem = {
   color: "green" | "blue" | "purple" | "amber";
 };
 
-type activeType = "dashboard" | "task" | "blockers" | "notifications" | "settings" | "project";
+type activeType = "dashboard" | "task" | "blockers" | "settings" | "project";
 
 type MemberSidebarProps = {
   profile: SidebarProfileData;
@@ -46,7 +46,6 @@ export function MemberSidebar({
     if (pathname.includes("/member/dashboard")) return "dashboard";
     if (pathname.includes("/member/tasks")) return "task";
     if (pathname.includes("/member/blockers")) return "blockers";
-    if (pathname.includes("/member/notifications")) return "notifications";
     if (pathname.includes("/member/settings")) return "settings";
     if (pathname.includes("/member/project/")) return "project";
     return null;
@@ -114,22 +113,6 @@ export function MemberSidebar({
             ) : null}
             <AlertTriangle className="size-5" />
             <span className="flex-1">My Blockers</span>
-          </Link>
-
-          <Link
-            href="/member/notifications"
-            className={cn(
-              "relative flex w-full items-center gap-3 rounded-xl px-4 py-3 transition",
-              active === "notifications"
-                ? "bg-white/5 text-blue-300 shadow-sm shadow-black/10"
-                : "text-slate-400 hover:bg-white/5 hover:text-white"
-            )}
-          >
-            {active === "notifications" ? (
-              <span className="absolute left-2 top-1/2 h-6 w-1 -translate-y-1/2 rounded-full bg-blue-500" />
-            ) : null}
-            <Bell className="size-5" />
-            <span className="flex-1">Notifications</span>
           </Link>
         </nav>
 

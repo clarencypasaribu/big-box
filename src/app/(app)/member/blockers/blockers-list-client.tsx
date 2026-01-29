@@ -1,12 +1,26 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { AlertTriangle, CheckCircle2, Clock, Search, Filter, Loader2 } from "lucide-react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { useState, useEffect, useRef } from "react";
+import { AlertTriangle, CheckCircle2, Clock, Search, Filter, Loader2, Plus, Paperclip, X } from "lucide-react";
+import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
+import {
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+} from "@/components/ui/select";
+
+type ProjectRef = {
+    id: string;
+    name: string;
+};
 
 type Blocker = {
     id: string;
@@ -26,13 +40,116 @@ type Blocker = {
 
 type FilterStatus = "all" | "Open" | "Assigned" | "Investigating" | "Resolved";
 
-export function BlockersListClient() {
+export function BlockersListClient({ projects }: { projects: ProjectRef[] }) {
     const [blockers, setBlockers] = useState<Blocker[]>([]);
     const [loading, setLoading] = useState(true);
     const [selectedBlocker, setSelectedBlocker] = useState<Blocker | null>(null);
     const [searchQuery, setSearchQuery] = useState("");
     const [filterStatus, setFilterStatus] = useState<FilterStatus>("all");
     const [updatingStatus, setUpdatingStatus] = useState(false);
+
+    // Report Blocker State
+    const [reportOpen, setReportOpen] = useState(false);
+    const [submittingReport, setSubmittingReport] = useState(false);
+    const [reportProject, setReportProject] = useState("");
+    const [reportTask, setReportTask] = useState("");
+    const [reportTitle, setReportTitle] = useState("");
+    const [reportReason, setReportReason] = useState("");
+    const [reportNotes, setReportNotes] = useState("");
+    const [reportAttachment, setReportAttachment] = useState<File | null>(null);
+    const [projectTasks, setProjectTasks] = useState<{ id: string; title: string }[]>([]);
+    const [tasksLoading, setTasksLoading] = useState(false);
+
+    // Fetch tasks when project changes
+    useEffect(() => {
+        if (!reportProject) {
+            setProjectTasks([]);
+            return;
+        }
+
+        const fetchTasks = async () => {
+            setTasksLoading(true);
+            try {
+                const res = await fetch(`/api/project-tasks?projectId=${encodeURIComponent(reportProject)}`);
+                if (res.ok) {
+                    const body = await res.json();
+                    // Filter only active tasks? or all? Let's show all usually, or active. 
+                    // Let's filter client side or just show all for now.
+                    setProjectTasks(body.data || []);
+                }
+            } catch (err) {
+                console.error("Failed to fetch tasks", err);
+            } finally {
+                setTasksLoading(false);
+            }
+        };
+
+        fetchTasks();
+    }, [reportProject]);
+
+    // Helper to convert file to base64 (copied from task page)
+    const fileToBase64 = (file: File): Promise<string> => {
+        return new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.readAsDataURL(file);
+            reader.onload = () => resolve(reader.result as string);
+            reader.onerror = (error) => reject(error);
+        });
+    };
+
+    async function handleReportBlocker() {
+        if (!reportTask || !reportReason.trim()) {
+            alert("Please select a task and provide a reason.");
+            return;
+        }
+        setSubmittingReport(true);
+
+        try {
+            let attachmentData = null;
+            if (reportAttachment) {
+                attachmentData = await fileToBase64(reportAttachment);
+            }
+
+            const res = await fetch("/api/blockers", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    taskId: reportTask,
+                    // If user provides specific title, use it. Else maybe derive from reason or task? 
+                    // existing API expects 'title'. 
+                    title: reportTitle.trim() || reportReason.trim().slice(0, 50),
+                    reason: reportReason.trim(),
+                    notes: reportNotes.trim(),
+                    product: "", // Optional or derived
+                    attachmentFileName: reportAttachment?.name ?? null,
+                    attachmentData: attachmentData,
+                    attachmentSize: reportAttachment?.size ?? 0,
+                    attachmentType: reportAttachment?.type ?? "",
+                }),
+            });
+
+            if (res.ok) {
+                setReportOpen(false);
+                fetchBlockers(); // Refresh list
+                // alert("Blocker reported successfully."); 
+                // Using alert for now as toast isn't set up yet or simple.
+                // Reset form
+                setReportProject("");
+                setReportTask("");
+                setReportTitle("");
+                setReportReason("");
+                setReportNotes("");
+                setReportAttachment(null);
+            } else {
+                alert("Failed to report blocker.");
+            }
+        } catch (error) {
+            console.error("Error reporting blocker", error);
+            alert("Error reporting blocker.");
+        } finally {
+            setSubmittingReport(false);
+        }
+    }
 
     async function fetchBlockers() {
         try {
@@ -123,20 +240,8 @@ export function BlockersListClient() {
     return (
         <>
             {/* Stats Cards */}
-            <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
-                <Card className="border-slate-200 bg-white shadow-sm">
-                    <CardContent className="p-4">
-                        <div className="flex items-center gap-3">
-                            <div className="grid size-10 place-items-center rounded-full bg-slate-100">
-                                <AlertTriangle className="size-5 text-slate-600" />
-                            </div>
-                            <div>
-                                <p className="text-2xl font-bold text-slate-900">{statusCounts.all}</p>
-                                <p className="text-xs text-slate-500">Total Blockers</p>
-                            </div>
-                        </div>
-                    </CardContent>
-                </Card>
+            <div className="grid grid-cols-2 gap-4 md:grid-cols-3">
+                {/* Removed Total Blockers Card as requested */}
                 <Card className="border-red-100 bg-red-50/50 shadow-sm">
                     <CardContent className="p-4">
                         <div className="flex items-center gap-3">
@@ -207,18 +312,21 @@ export function BlockersListClient() {
                                 onChange={(e) => setSearchQuery(e.target.value)}
                             />
                         </div>
+                        {/* Report New Blocker Button */}
+                        <Button
+                            className="bg-red-600 text-white hover:bg-red-700 w-full md:w-auto ml-auto"
+                            onClick={() => setReportOpen(true)}
+                        >
+                            <Plus className="mr-2 size-4" />
+                            Report New Blocker
+                        </Button>
                     </div>
                 </CardContent>
             </Card>
 
             {/* Blockers List */}
             <Card className="border-slate-200 bg-white shadow-sm">
-                <CardHeader className="border-b border-slate-100 pb-3">
-                    <CardTitle className="flex items-center gap-2 text-lg font-semibold text-slate-900">
-                        <AlertTriangle className="size-5 text-red-600" />
-                        Assigned Blockers
-                    </CardTitle>
-                </CardHeader>
+
                 <CardContent className="p-0">
                     {loading ? (
                         <div className="flex items-center justify-center py-12">
@@ -227,12 +335,13 @@ export function BlockersListClient() {
                     ) : filteredBlockers.length === 0 ? (
                         <div className="flex flex-col items-center justify-center py-12 text-center text-slate-500">
                             <CheckCircle2 className="mb-3 size-12 text-emerald-200" />
-                            <p className="text-lg font-medium">No blockers found</p>
-                            <p className="text-sm">
+                            <p className="text-lg font-medium">No blockers found 🎉</p>
+                            <p className="text-sm text-slate-500 mb-4">
                                 {searchQuery || filterStatus !== "all"
                                     ? "Try adjusting your filters"
-                                    : "You have no assigned blockers"}
+                                    : "Everything is running smoothly."}
                             </p>
+
                         </div>
                     ) : (
                         <div className="divide-y divide-slate-100">
@@ -394,6 +503,113 @@ export function BlockersListClient() {
                             </div>
                         </div>
                     )}
+                </DialogContent>
+            </Dialog>
+
+            {/* Report New Blocker Dialog */}
+            <Dialog open={reportOpen} onOpenChange={setReportOpen}>
+                <DialogContent className="sm:max-w-lg">
+                    <DialogHeader>
+                        <DialogTitle className="text-xl font-semibold">Report New Blocker</DialogTitle>
+                    </DialogHeader>
+                    <div className="space-y-4 py-4">
+                        <div className="grid grid-cols-2 gap-4">
+                            <div className="space-y-2">
+                                <Label>Project</Label>
+                                <Select value={reportProject} onValueChange={setReportProject}>
+                                    <SelectTrigger>
+                                        <SelectValue placeholder="Select Project" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        {projects.map(p => (
+                                            <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
+                            </div>
+                            <div className="space-y-2">
+                                <Label>Task</Label>
+                                <Select value={reportTask} onValueChange={setReportTask} disabled={!reportProject || tasksLoading}>
+                                    <SelectTrigger>
+                                        <SelectValue placeholder={tasksLoading ? "Loading..." : "Select Task"} />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        {projectTasks.map(t => (
+                                            <SelectItem key={t.id} value={t.id}>{t.title}</SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
+                            </div>
+                        </div>
+
+                        <div className="space-y-2">
+                            <Label>Blocker Title</Label>
+                            <Input
+                                placeholder="Short concise title (e.g. API 500 Error)"
+                                value={reportTitle}
+                                onChange={e => setReportTitle(e.target.value)}
+                            />
+                        </div>
+
+                        <div className="space-y-2">
+                            <Label>Detailed Reason</Label>
+                            <Textarea
+                                placeholder="Describe exactly what is blocking you..."
+                                rows={4}
+                                value={reportReason}
+                                onChange={e => setReportReason(e.target.value)}
+                            />
+                        </div>
+
+                        <div className="space-y-2">
+                            <Label>Attachment (Optional)</Label>
+                            <div className="flex items-center gap-2">
+                                <label className="flex-1 cursor-pointer">
+                                    <div className="flex items-center justify-center gap-2 rounded-lg border-2 border-dashed border-slate-300 bg-slate-50 px-4 py-2 text-xs text-slate-500 hover:border-indigo-400 hover:bg-indigo-50 transition">
+                                        <Paperclip className="size-3.5" />
+                                        {reportAttachment ? (
+                                            <span className="text-slate-700 font-medium truncate">{reportAttachment.name}</span>
+                                        ) : (
+                                            <span>Attach file...</span>
+                                        )}
+                                    </div>
+                                    <input
+                                        type="file"
+                                        className="hidden"
+                                        onChange={(e) => setReportAttachment(e.target.files?.[0] ?? null)}
+                                    />
+                                </label>
+                                {reportAttachment && (
+                                    <Button
+                                        variant="ghost"
+                                        size="sm"
+                                        className="h-8 w-8 p-0 text-rose-500 hover:text-rose-600"
+                                        onClick={() => setReportAttachment(null)}
+                                    >
+                                        <X className="size-4" />
+                                    </Button>
+                                )}
+                            </div>
+                        </div>
+                    </div>
+                    <div className="mt-6 flex flex-row items-center justify-end gap-2 pt-4 border-t border-slate-100">
+                        <Button variant="ghost" type="button" onClick={() => setReportOpen(false)}>Cancel</Button>
+                        <Button
+                            type="button"
+                            className="bg-red-600 hover:bg-red-700 text-white"
+                            onClick={handleReportBlocker}
+                            disabled={submittingReport}
+                        >
+                            {submittingReport ? (
+                                <>
+                                    <Loader2 className="mr-2 size-4 animate-spin" />
+                                    Reporting...
+                                </>
+                            ) : (
+                                "Report Blocker"
+                            )}
+                        </Button>
+                    </div>
                 </DialogContent>
             </Dialog>
         </>

@@ -1,8 +1,7 @@
 "use client";
 
-import { Bell, Search } from "lucide-react";
+import { Bell } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import {
     Popover,
     PopoverContent,
@@ -13,15 +12,7 @@ import { NotificationsClient } from "@/app/(app)/member/dashboard/notifications-
 export function PMHeaderActions() {
     return (
         <div className="flex w-full items-center justify-end gap-3">
-            {/* Search Bar */}
-            <div className="relative w-full max-w-xs lg:max-w-sm">
-                <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-slate-400" />
-                <Input
-                    className="h-11 rounded-md border-slate-200 bg-slate-100/60 pl-10 text-sm"
-                    placeholder="Search for anything..."
-                    type="search"
-                />
-            </div>
+
 
             {/* Notification Bell */}
             <Popover>

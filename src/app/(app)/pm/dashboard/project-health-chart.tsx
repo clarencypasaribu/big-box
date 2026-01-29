@@ -62,16 +62,25 @@ export function ProjectHealthChart({ data }: { data: ProjectHealthData }) {
     }, [data, total]);
 
     const [hoverIdx, setHoverIdx] = useState<number | null>(null);
+    const [mousePos, setMousePos] = useState({ x: 0, y: 0 });
 
     const circumference = 251.3;
     let offsetAcc = 0;
-    const firstNonZeroIdx = useMemo(
-        () => segments.findIndex((seg) => seg.value > 0),
-        [segments]
-    );
+
+    const handleMouseMove = (e: React.MouseEvent) => {
+        // Get cursor position relative to the SVG container is tricky, 
+        // relying on page/client coordinates works best for fixed/portal tooltips,
+        // but simple absolute positioning relative to the card/container works well too.
+        // We'll use relative coordinates to the container div.
+        const rect = e.currentTarget.getBoundingClientRect();
+        setMousePos({
+            x: e.clientX - rect.left,
+            y: e.clientY - rect.top,
+        });
+    };
 
     return (
-        <Card className="border-slate-200/60 bg-gradient-to-br from-white to-slate-50/50 shadow-lg transition-shadow hover:shadow-xl">
+        <Card className="border-slate-200/60 bg-gradient-to-br from-white to-slate-50/50 shadow-lg transition-shadow hover:shadow-xl group/card relative overflow-hidden">
             <CardHeader className="pb-3">
                 <CardTitle className="text-lg font-semibold text-slate-800">
                     Project Health Status
@@ -79,19 +88,17 @@ export function ProjectHealthChart({ data }: { data: ProjectHealthData }) {
             </CardHeader>
             <CardContent>
                 <div className="flex items-center justify-between gap-8">
-                    {/* Donut Chart */}
-                    <div className="relative">
+                    {/* Donut Chart Container */}
+                    <div
+                        className="relative"
+                        onMouseMove={handleMouseMove}
+                        onMouseLeave={() => setHoverIdx(null)}
+                    >
                         <svg
                             width="180"
                             height="180"
                             viewBox="0 0 100 100"
-                            className="drop-shadow-md"
-                            onMouseLeave={() => setHoverIdx(null)}
-                            onMouseEnter={() => {
-                                if (hoverIdx === null) {
-                                    setHoverIdx(firstNonZeroIdx !== -1 ? firstNonZeroIdx : 0);
-                                }
-                            }}
+                            className="drop-shadow-md cursor-crosshair"
                         >
                             {/* Background circle */}
                             <circle
@@ -123,11 +130,11 @@ export function ProjectHealthChart({ data }: { data: ProjectHealthData }) {
                                                 r="40"
                                                 fill="transparent"
                                                 stroke={`url(#${gradId})`}
-                                                strokeWidth="12"
+                                                strokeWidth={hoverIdx === idx ? "14" : "12"}
                                                 strokeDasharray={`${dash} ${circumference}`}
                                                 strokeDashoffset={dashOffset}
                                                 strokeLinecap="round"
-                                                className="transition-all duration-700 ease-out cursor-pointer"
+                                                className="transition-all duration-200 ease-out"
                                                 onMouseEnter={() => setHoverIdx(idx)}
                                             />
                                         </g>
@@ -136,22 +143,35 @@ export function ProjectHealthChart({ data }: { data: ProjectHealthData }) {
                             </g>
                         </svg>
                         {/* Center content */}
-                        <div className="absolute inset-0 flex flex-col items-center justify-center">
+                        <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
                             <span className="text-3xl font-bold bg-gradient-to-br from-slate-700 to-slate-900 bg-clip-text text-transparent">
                                 {total}
                             </span>
                             <span className="text-xs font-medium text-slate-500">Projects</span>
                         </div>
 
-                        {/* Tooltip */}
+                        {/* Floating Tooltip */}
                         {hoverIdx !== null && segments[hoverIdx] && (
-                            <div className="absolute -right-4 top-1/2 w-44 -translate-y-1/2 rounded-xl border border-slate-200 bg-white p-3 text-sm shadow-lg">
-                                <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                            <div
+                                className="pointer-events-none absolute z-50 rounded-lg border border-slate-200 bg-white p-3 shadow-xl ring-1 ring-slate-100 transition-opacity duration-150"
+                                style={{
+                                    left: mousePos.x,
+                                    top: mousePos.y,
+                                    transform: 'translate(10px, 10px)', // Offset from cursor
+                                    minWidth: "140px"
+                                }}
+                            >
+                                <p className="mb-1 text-xs font-bold uppercase tracking-wider text-slate-500">
                                     {segments[hoverIdx].label}
                                 </p>
-                                <p className="text-lg font-bold text-slate-900">
-                                    {segments[hoverIdx].value} <span className="text-xs font-medium text-slate-500">({segments[hoverIdx].percent.toFixed(1)}%)</span>
-                                </p>
+                                <div className="flex items-baseline gap-2">
+                                    <span className="text-xl font-bold text-slate-900">
+                                        {segments[hoverIdx].value}
+                                    </span>
+                                    <span className="text-xs font-medium text-slate-500">
+                                        ({segments[hoverIdx].percent.toFixed(1)}%)
+                                    </span>
+                                </div>
                             </div>
                         )}
                     </div>
@@ -161,12 +181,10 @@ export function ProjectHealthChart({ data }: { data: ProjectHealthData }) {
                         {segments.map((item, idx) => (
                             <div key={item.label} className="group flex items-center gap-3">
                                 <div
-                                    className={`size-3.5 rounded-full ${item.bg} shadow-sm ring-2 ring-white cursor-pointer`}
+                                    className={`size-3.5 rounded-full ${item.bg} shadow-sm ring-2 ring-white cursor-pointer transition-transform group-hover:scale-110`}
                                     onMouseEnter={() => setHoverIdx(idx)}
-                                    onFocus={() => setHoverIdx(idx)}
                                     role="button"
                                     tabIndex={0}
-                                    aria-label={`${item.label} ${item.value} (${item.percent.toFixed(0)}%)`}
                                 />
                                 <div className="flex flex-col">
                                     <span className="text-sm font-semibold text-slate-700 group-hover:text-slate-900 transition-colors">
@@ -182,6 +200,23 @@ export function ProjectHealthChart({ data }: { data: ProjectHealthData }) {
                             </div>
                         ))}
                     </div>
+                </div>
+
+                {/* Explanatory Text */}
+                <div className="mt-4 rounded-lg bg-slate-50 px-4 py-3 text-center">
+                    {data.delayed > 0 ? (
+                        <p className="text-sm text-slate-600">
+                            <span className="font-semibold text-rose-600">{data.delayed} project{data.delayed > 1 ? 's' : ''}</span> delayed due to overdue tasks or blockers
+                        </p>
+                    ) : data.atRisk > 0 ? (
+                        <p className="text-sm text-slate-600">
+                            <span className="font-semibold text-amber-600">{data.atRisk} project{data.atRisk > 1 ? 's' : ''}</span> at risk of missing deadlines
+                        </p>
+                    ) : (
+                        <p className="text-sm text-emerald-600 font-medium">
+                            ✓ All projects are progressing as planned
+                        </p>
+                    )}
                 </div>
             </CardContent>
         </Card>

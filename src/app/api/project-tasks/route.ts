@@ -3,30 +3,21 @@ import { NextResponse } from "next/server";
 import { createSupabaseServiceClient } from "@/utils/supabase-service";
 import { createSupabaseServerClient } from "@/utils/supabase-server";
 
-async function getCurrentUserFromRequest(request: Request) {
-  // Try cookie-based session first
+function hasSupabaseAuthCookie(request: Request) {
+  const cookieHeader = request.headers.get("cookie") || "";
+  return cookieHeader.includes("sb-") || cookieHeader.includes("supabase-auth-token");
+}
+
+async function getCurrentUserId(request: Request): Promise<string | null> {
+  if (!hasSupabaseAuthCookie(request)) return null;
+
   try {
-    const server = await createSupabaseServerClient();
-    const { data } = await server.auth.getUser();
-    if (data.user) return data.user;
+    const supabase = await createSupabaseServerClient({ allowWrite: true });
+    const { data: { user } } = await supabase.auth.getUser();
+    return user?.id ?? null;
   } catch {
-    // ignore
+    return null;
   }
-
-  // Fallback: Authorization Bearer token
-  const authHeader = request.headers.get("authorization");
-  if (authHeader?.startsWith("Bearer ")) {
-    const token = authHeader.split(" ")[1];
-    try {
-      const admin = await createSupabaseServiceClient({ allowWrite: true });
-      const { data, error } = await admin.auth.getUser(token);
-      if (!error && data.user) return data.user;
-    } catch {
-      // ignore
-    }
-  }
-
-  return null;
 }
 
 export async function GET(request: Request) {
@@ -127,31 +118,20 @@ export async function POST(request: Request) {
       );
     }
 
-    // Resolve current user and default assignee
-    let resolvedAssignee: string | null = rawAssignee || null;
-    let createdBy: string | null = null;
-    try {
-      const user = await getCurrentUserFromRequest(request);
-      if (user?.id) {
-        createdBy = user.id;
-        if (!resolvedAssignee) {
-          const supabaseAdmin = await createSupabaseServiceClient({ allowWrite: true });
-          const { data: profile } = await supabaseAdmin
-            .from("profiles")
-            .select("full_name,email")
-            .eq("id", user.id)
-            .maybeSingle();
-          resolvedAssignee =
-            profile?.full_name ||
-            profile?.email ||
-            (typeof user.user_metadata?.full_name === "string" ? user.user_metadata.full_name : null) ||
-            user.email ||
-            user.id ||
-            null;
-        }
-      }
-    } catch {
-      resolvedAssignee = resolvedAssignee ?? null;
+    const supabase = await createSupabaseServiceClient({ allowWrite: true });
+
+    // Get current user for auto-assignment (using server client for session)
+    const currentUserId = await getCurrentUserId(request);
+
+    // If no assignee is provided, try to get the current user's full name
+    let assigneeName = body.assignee ? String(body.assignee) : null;
+    if (!assigneeName && currentUserId) {
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("full_name")
+        .eq("id", currentUserId)
+        .maybeSingle();
+      assigneeName = profile?.full_name || null;
     }
 
     const payload = {
@@ -161,12 +141,9 @@ export async function POST(request: Request) {
       description: body.description ? String(body.description) : null,
       priority: body.priority ? String(body.priority) : null,
       due_date: body.dueDate ? String(body.dueDate) : null,
-      assignee: resolvedAssignee,
-      created_by: createdBy,
+      assignee: assigneeName,
       status: "Not Started",
     };
-
-    const supabase = await createSupabaseServiceClient({ allowWrite: true });
     const { data, error } = await supabase
       .from("tasks")
       .insert(payload)
@@ -195,9 +172,8 @@ export async function POST(request: Request) {
     if (projectData?.owner_id) recipientIds.add(projectData.owner_id);
     projectMembers?.forEach(pm => recipientIds.add(pm.member_id));
 
-    // Get current user ID to exclude self
-    const { data: { user: currentUser } } = await supabase.auth.getUser();
-    if (currentUser?.id) recipientIds.delete(currentUser.id);
+    // Exclude current user from notifications (already fetched above)
+    if (currentUserId) recipientIds.delete(currentUserId);
 
     const notifications = Array.from(recipientIds).map(userId => ({
       user_id: userId,

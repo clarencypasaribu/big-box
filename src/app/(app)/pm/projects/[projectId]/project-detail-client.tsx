@@ -9,6 +9,7 @@ import {
   CheckCircle2,
   MapPin,
   Plus,
+  Search,
   UserRound,
   X,
 } from "lucide-react";
@@ -97,6 +98,7 @@ export function ProjectDetailClient({ projectId }: ProjectDetailClientProps) {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const lastLocalToggleAtRef = useRef<number>(0);
+  const taskSectionRef = useRef<HTMLDivElement>(null);
 
   // Add Task Dialog State
   const [addTaskOpen, setAddTaskOpen] = useState(false);
@@ -218,26 +220,42 @@ export function ProjectDetailClient({ projectId }: ProjectDetailClientProps) {
   if (!project) {
     return (
       <Card className="border-slate-200 shadow-sm">
-        <CardContent className="p-6">
-          <h1 className="text-2xl font-semibold text-slate-900">Project not found</h1>
-          <p className="mt-2 text-slate-600">
-            Project data was not found. Make sure the ID or code is correct, then try again.
+        <CardContent className="flex flex-col items-center justify-center py-12 text-center">
+          <div className="mb-4 grid size-16 place-items-center rounded-full bg-slate-100">
+            <Search className="size-8 text-slate-400" />
+          </div>
+          <h1 className="text-xl font-semibold text-slate-900">Project not found</h1>
+          <p className="mt-2 text-sm text-slate-500 max-w-sm">
+            We couldn't find the project you're looking for. It might have been deleted or the link is invalid.
           </p>
-          {error ? <p className="mt-3 text-sm text-rose-600">Detail: {error}</p> : null}
+          {error && <p className="mt-4 rounded-md bg-rose-50 px-3 py-2 text-xs font-medium text-rose-600">Error: {error}</p>}
+          <div className="mt-6">
+            <Link href="/pm/projects">
+              <Button>Back to Projects</Button>
+            </Link>
+          </div>
         </CardContent>
       </Card>
     );
   }
 
   const statusTone: Record<string, string> = {
-    "In Progress": "bg-amber-50 text-amber-700",
-    Completed: "bg-emerald-50 text-emerald-700",
-    Pending: "bg-rose-50 text-rose-700",
-    "Not Started": "bg-slate-100 text-slate-700",
+    "In Progress": "bg-indigo-600 text-white shadow-sm ring-1 ring-indigo-600/10",
+    Completed: "bg-emerald-600 text-white shadow-sm ring-1 ring-emerald-600/10",
+    Pending: "bg-rose-600 text-white shadow-sm ring-1 ring-rose-600/10",
+    "Not Started": "bg-slate-600 text-white shadow-sm ring-1 ring-slate-600/10",
   };
 
   const progress = project.progress ?? 0;
   const team = project.teamMembers?.length ? project.teamMembers : ["No team assigned"];
+
+
+
+  const scrollToStage = (stageId: string) => {
+    // Ideally we would scroll to specific stage card, but scrolling to section is good start
+    taskSectionRef.current?.scrollIntoView({ behavior: 'smooth' });
+  };
+
   // Semua task per stage (termasuk stage-1) untuk ditampilkan di kartu "Task Team Member per Stage".
   const tasksByStageAll = stageDefinitions.map((stage) => ({
     ...stage,
@@ -245,6 +263,10 @@ export function ProjectDetailClient({ projectId }: ProjectDetailClientProps) {
   }));
   // Stage untuk timeline/approval (tampilkan 5 stage lengkap).
   const timelineStages = tasksByStageAll;
+
+  const totalTasksCount = tasks.length;
+  const completedTasksCount = tasks.filter(t => t.done).length;
+
   const stageStats = tasksByStageAll.reduce<Record<string, { total: number; done: number; deadline?: string | null }>>(
     (acc, stage) => {
       const total = stage.tasks.length;
@@ -447,7 +469,7 @@ export function ProjectDetailClient({ projectId }: ProjectDetailClientProps) {
       <Dialog open={addTaskOpen} onOpenChange={setAddTaskOpen}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>Add New Task</DialogTitle>
+            <DialogTitle>Add New Task to {stageDefinitions.find(s => s.id === addTaskStage)?.label}</DialogTitle>
           </DialogHeader>
           <div className="space-y-4 pt-2">
             <div className="space-y-2">
@@ -554,11 +576,7 @@ export function ProjectDetailClient({ projectId }: ProjectDetailClientProps) {
             </div>
           </div>
           <div className="flex flex-wrap items-center gap-3">
-            <Button variant="outline" className="gap-2 rounded-full border-slate-200" asChild>
-              <Link href={`/pm/projects/${encodeURIComponent(project.code || project.id || "")}/report`} target="_blank">
-                Export PDF
-              </Link>
-            </Button>
+            {/* Export PDF removed */}
           </div>
         </div>
 
@@ -568,8 +586,14 @@ export function ProjectDetailClient({ projectId }: ProjectDetailClientProps) {
               const stageId = `stage-${index + 1}`;
               const stageDeadline = project.stageDeadlines?.[stageId];
               const isOverdue = stageDeadline && new Date(stageDeadline) < new Date() && stageStates[index] !== "done";
+              const isClickable = stageStates[index] === "active";
+
               return (
-                <div key={`${stage.label}-${index}`} className="flex items-center gap-3">
+                <div
+                  key={`${stage.label}-${index}`}
+                  className={`flex items-center gap-3 ${isClickable ? "cursor-pointer transition-opacity hover:opacity-80" : "opacity-80 disabled"}`}
+                  onClick={() => isClickable && scrollToStage(stage.id)}
+                >
                   <div
                     className={`grid size-9 place-items-center rounded-full border ${stageStates[index] === "done"
                       ? "border-indigo-200 bg-indigo-50 text-indigo-600"
@@ -665,13 +689,13 @@ export function ProjectDetailClient({ projectId }: ProjectDetailClientProps) {
             <CardContent className="space-y-3 p-5">
               <div className="flex items-center justify-between">
                 <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-                  Open Task
+                  Completed Tasks
                 </p>
                 <p className="text-sm font-semibold text-slate-900">{progress}%</p>
               </div>
               <div className="space-y-2">
                 <p className="text-3xl font-semibold text-slate-900">
-                  {activeStage.tasks.length}
+                  {completedTasksCount} / {totalTasksCount}
                 </p>
                 <Progress value={progress} className="h-2 bg-slate-200" />
               </div>
@@ -679,12 +703,11 @@ export function ProjectDetailClient({ projectId }: ProjectDetailClientProps) {
           </Card>
         </div>
 
-        <Card className="border-slate-200 shadow-sm">
+        <Card className="border-slate-200 shadow-sm" ref={taskSectionRef}>
           <CardContent className="space-y-4 p-5">
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div>
                 <h2 className="text-lg font-semibold text-slate-900">Task Team Member per Stage</h2>
-                <p className="text-xs text-slate-500">Tasks submitted by team members for each stage.</p>
               </div>
             </div>
             <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
@@ -778,12 +801,7 @@ export function ProjectDetailClient({ projectId }: ProjectDetailClientProps) {
                                 }}
                               />
                             </div>
-                            <div className="flex justify-between text-[10px] text-slate-400">
-                              <span>Tasks: {Math.round(taskProgress)}%</span>
-                              <span className={timeProgress > taskProgress ? "text-rose-500 font-medium" : ""}>
-                                Time: {Math.round(timeProgress)}%
-                              </span>
-                            </div>
+                            {/* Detailed % text removed for cleaner UI */}
                           </div>
                         )}
                       </div>
@@ -799,9 +817,17 @@ export function ProjectDetailClient({ projectId }: ProjectDetailClientProps) {
 
                     {/* Tasks List */}
                     {stage.tasks.length === 0 ? (
-                      <p className="py-2 text-center text-xs text-slate-500 bg-slate-50 rounded-md border border-dashed border-slate-200">
-                        No tasks yet
-                      </p>
+                      <div className="flex flex-col items-center justify-center gap-2 py-6 rounded-md border border-dashed border-slate-200 bg-slate-50">
+                        <p className="text-xs text-slate-500">No tasks yet</p>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="h-7 text-xs"
+                          onClick={() => openAddTaskDialog(stage.id)}
+                        >
+                          Add first task
+                        </Button>
+                      </div>
                     ) : (
                       <div className="space-y-2">
                         {stage.tasks.map((task) => (
@@ -816,7 +842,13 @@ export function ProjectDetailClient({ projectId }: ProjectDetailClientProps) {
                             <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-slate-600">
                               <span className="flex items-center gap-1">
                                 <UserRound className="size-3" />
-                                {task.assignee || "Unassigned"}
+                                {task.assignee ? (
+                                  <span>{task.assignee}</span>
+                                ) : (
+                                  <span className="rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-semibold text-amber-700">
+                                    ⚠️ Unassigned
+                                  </span>
+                                )}
                               </span>
                               <span className="h-3 w-px bg-slate-300" aria-hidden />
                               <span>{task.status}</span>
