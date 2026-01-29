@@ -30,7 +30,7 @@ async function loadUsersFromDb(): Promise<{ users: UserRow[]; error?: string | n
     // If usage of 'auth.persistSession: false' resolved the fetch issue, this should work.
     const adminAttempt = await adminSupabase
       .from("profiles")
-      .select("id,full_name,email,role,is_active,updated_at,phone,position,avatar_url,created_at")
+      .select("id,full_name,email,role,is_active,updated_at,phone,position,avatar_url,created_at,bio")
       .order("full_name", { ascending: true });
 
     if (adminAttempt.error) {

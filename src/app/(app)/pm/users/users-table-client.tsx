@@ -45,6 +45,7 @@ export type UserRow = {
   phone: string;
   position: string;
   avatarUrl: string | null;
+  bio?: string;
   joinedAt?: string;
 };
 
@@ -318,7 +319,7 @@ export function UsersTableClient({
 
       {/* User Detail Modal */}
       <Dialog open={!!detailUser} onOpenChange={(open) => !open && setDetailUser(null)}>
-        <DialogContent className="p-0 overflow-hidden border-0 sm:max-w-md bg-white shadow-2xl rounded-2xl">
+        <DialogContent className="p-0 overflow-hidden border-0 sm:max-w-lg bg-white shadow-2xl rounded-2xl">
           {detailUser && (
             <>
               {/* Header Gradient */}
