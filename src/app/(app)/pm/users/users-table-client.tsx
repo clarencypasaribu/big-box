@@ -1,7 +1,7 @@
 "use client";
 
-import { useMemo, useState } from "react";
-import { Eye, Folder, Loader2, Search, Ban, ShieldAlert, Mail, Phone as PhoneIcon, BadgeCheck, Calendar, Briefcase, CheckCircle2 } from "lucide-react";
+import { useMemo, useState, type ReactNode } from "react";
+import { Eye, Folder, Loader2, Search, ShieldAlert, Mail, Phone as PhoneIcon, Calendar, Briefcase, CheckCircle2, Hash, User2 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 
 import { Badge } from "@/components/ui/badge";
@@ -319,15 +319,14 @@ export function UsersTableClient({
 
       {/* User Detail Modal */}
       <Dialog open={!!detailUser} onOpenChange={(open) => !open && setDetailUser(null)}>
-        <DialogContent className="p-0 overflow-hidden border-0 sm:max-w-lg bg-white shadow-2xl rounded-2xl">
+        <DialogContent className="overflow-hidden rounded-2xl border-0 bg-white p-0 shadow-2xl sm:max-w-xl">
           {detailUser && (
             <>
-              {/* Header Gradient */}
-              <div className="h-32 bg-gradient-to-r from-blue-600 to-indigo-600 relative">
+              <div className="relative h-36 bg-gradient-to-r from-indigo-600 via-blue-600 to-sky-500">
                 <Button
                   variant="ghost"
                   size="icon"
-                  className="absolute right-2 top-2 text-white/70 hover:bg-white/20 hover:text-white rounded-full"
+                  className="absolute right-3 top-3 rounded-full text-white/80 hover:bg-white/20 hover:text-white"
                   onClick={() => setDetailUser(null)}
                 >
                   <span className="sr-only">Close</span>
@@ -335,95 +334,54 @@ export function UsersTableClient({
                 </Button>
               </div>
 
-              <div className="px-6 pb-8">
-                <div className="relative flex flex-col items-center -mt-16 mb-6">
-                  <div className="relative flex size-32 items-center justify-center rounded-full bg-white p-1 shadow-lg ring-1 ring-slate-100">
-                    <div className="flex size-full items-center justify-center rounded-full bg-indigo-50 text-indigo-600 overflow-hidden">
+              <div className="-mt-16 px-6 pb-8">
+                <div className="flex flex-col items-center gap-3">
+                  <div className="relative size-32 rounded-full bg-white p-1 shadow-lg ring-4 ring-white">
+                    <div className="flex size-full items-center justify-center overflow-hidden rounded-full bg-indigo-50 text-indigo-700">
                       {detailUser.avatarUrl ? (
                         <img src={detailUser.avatarUrl} alt={detailUser.name} className="size-full object-cover" />
                       ) : (
-                        <span className="text-4xl font-bold">{detailUser.name.charAt(0).toUpperCase()}</span>
+                        <span className="text-4xl font-semibold">{detailUser.name.charAt(0).toUpperCase()}</span>
                       )}
                     </div>
-                    {/* Status Indicator Badge */}
-                    <div className={`absolute bottom-1 right-1 size-7 rounded-full border-[3px] border-white flex items-center justify-center ${detailUser.status === 'Active' ? 'bg-emerald-500' : 'bg-slate-300'}`}>
-                      {detailUser.status === 'Active' && <CheckCircle2 className="size-3.5 text-white" strokeWidth={3} />}
+                    <div
+                      className={`absolute -bottom-1 -right-1 flex size-8 items-center justify-center rounded-full border-4 border-white ${detailUser.status === "Active" ? "bg-emerald-500" : "bg-slate-300"}`}
+                    >
+                      <CheckCircle2 className="size-4 text-white" />
                     </div>
                   </div>
 
-                  <div className="text-center mt-4 space-y-1">
+                  <div className="text-center space-y-1">
                     <h2 className="text-2xl font-bold text-slate-900">{detailUser.name}</h2>
-                    <div className="flex items-center justify-center gap-2 text-sm">
-                      <Badge variant="secondary" className="rounded-full bg-indigo-50 px-3 py-0.5 font-medium text-indigo-700 hover:bg-indigo-100">
-                        {detailUser.role || "Team Member"}
+                    <div className="flex flex-wrap items-center justify-center gap-2 text-sm">
+                      <Badge className="rounded-full bg-indigo-50 px-3 py-1 text-indigo-700 ring-1 ring-inset ring-indigo-200">
+                        {detailUser.role || "team_member"}
                       </Badge>
-                      <span className="text-slate-300">|</span>
-                      <span className="text-slate-500 font-medium">{detailUser.position || "No Position"}</span>
+                      {detailUser.position ? (
+                        <Badge variant="outline" className="rounded-full border-slate-200 px-3 py-1 text-slate-700">
+                          {detailUser.position}
+                        </Badge>
+                      ) : null}
+                      <Badge
+                        variant="outline"
+                        className={`rounded-full px-3 py-1 ${detailUser.status === "Active"
+                          ? "border-emerald-200 bg-emerald-50 text-emerald-700"
+                          : "border-slate-200 bg-slate-50 text-slate-600"
+                          }`}
+                      >
+                        {detailUser.status}
+                      </Badge>
                     </div>
                   </div>
                 </div>
 
-                <div className="space-y-4">
-                  {/* Contact Info Section */}
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    {/* Email */}
-                    <div className="col-span-1 md:col-span-2 flex items-center p-4 rounded-2xl bg-white border border-slate-100 shadow-sm gap-4 hover:border-indigo-100 transition-colors">
-                      <div className="grid size-10 place-items-center rounded-full bg-indigo-50 text-indigo-600 shrink-0">
-                        <Mail className="size-5" />
-                      </div>
-                      <div className="min-w-0">
-                        <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Email Address</p>
-                        <p className="text-sm font-semibold text-slate-900 truncate">{detailUser.email}</p>
-                      </div>
-                    </div>
-
-                    {/* Phone */}
-                    <div className="flex items-center p-4 rounded-2xl bg-white border border-slate-100 shadow-sm gap-4 hover:border-indigo-100 transition-colors">
-                      <div className="grid size-10 place-items-center rounded-full bg-emerald-50 text-emerald-600 shrink-0">
-                        <PhoneIcon className="size-5" />
-                      </div>
-                      <div className="min-w-0">
-                        <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Phone</p>
-                        <p className="text-sm font-semibold text-slate-900 truncate">{detailUser.phone || "Not set"}</p>
-                      </div>
-                    </div>
-
-                    {/* Joined Date */}
-                    <div className="flex items-center p-4 rounded-2xl bg-white border border-slate-100 shadow-sm gap-4 hover:border-indigo-100 transition-colors">
-                      <div className="grid size-10 place-items-center rounded-full bg-amber-50 text-amber-600 shrink-0">
-                        <Calendar className="size-5" />
-                      </div>
-                      <div className="min-w-0">
-                        <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Joined Date</p>
-                        <p className="text-sm font-semibold text-slate-900 truncate">{detailUser.joinedAt || "Unknown"}</p>
-                      </div>
-                    </div>
-
-                    {/* Status */}
-                    <div className="flex items-center p-4 rounded-2xl bg-white border border-slate-100 shadow-sm gap-4 hover:border-indigo-100 transition-colors">
-                      <div className="grid size-10 place-items-center rounded-full bg-slate-50 text-slate-600 shrink-0">
-                        <BadgeCheck className="size-5" />
-                      </div>
-                      <div className="min-w-0">
-                        <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Account Status</p>
-                        <div className={`inline-flex items-center gap-1.5 mt-0.5 text-sm font-semibold ${detailUser.status === 'Active' ? 'text-emerald-700' : 'text-slate-600'}`}>
-                          {detailUser.status}
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Position (Redundant but keeps grid balanced if needed, or remove. I'll replace with Role detail if needed, or keeping Layout balanced with 4 items below email) */}
-                    {/* Actually I already showed position and role in header. Maybe show User ID? */}
-                    <div className="md:col-span-2 flex items-center p-4 rounded-2xl bg-slate-50 border border-slate-100/50 shadow-sm gap-4">
-                      <div className="grid size-8 place-items-center rounded-full bg-white text-slate-400 shrink-0 border border-slate-100">
-                        <span className="text-[10px] font-bold">ID</span>
-                      </div>
-                      <div className="min-w-0 flex items-center gap-2">
-                        <span className="text-xs text-slate-400 font-mono">User ID:</span>
-                        <code className="text-xs font-mono text-slate-600 bg-white px-2 py-0.5 rounded border border-slate-200">{detailUser.id}</code>
-                      </div>
-                    </div>
-                  </div>
+                <div className="mt-6 grid grid-cols-1 gap-4 md:grid-cols-2">
+                  <InfoCard icon={<Mail className="size-5" />} title="Email Address" value={detailUser.email} />
+                  <InfoCard icon={<PhoneIcon className="size-5" />} title="Phone" value={detailUser.phone || "Not set"} />
+                  <InfoCard icon={<Briefcase className="size-5" />} title="Position" value={detailUser.position || "—"} />
+                  <InfoCard icon={<Calendar className="size-5" />} title="Joined" value={detailUser.joinedAt || "Unknown"} />
+                  <InfoCard icon={<Hash className="size-5" />} title="User ID" value={detailUser.id} mono />
+                  <InfoCard icon={<User2 className="size-5" />} title="Bio" value={detailUser.bio || "No bio provided"} spanFull />
                 </div>
               </div>
               <DialogTitle className="sr-only">User Details</DialogTitle>
@@ -431,6 +389,32 @@ export function UsersTableClient({
           )}
         </DialogContent>
       </Dialog>
+    </div>
+  );
+}
+
+function InfoCard({
+  icon,
+  title,
+  value,
+  mono,
+  spanFull,
+}: {
+  icon: ReactNode;
+  title: string;
+  value: string;
+  mono?: boolean;
+  spanFull?: boolean;
+}) {
+  return (
+    <div
+      className={`flex items-start gap-3 rounded-2xl border border-slate-100 bg-white p-4 shadow-sm transition hover:-translate-y-0.5 hover:border-indigo-100 ${spanFull ? "md:col-span-2" : ""}`}
+    >
+      <div className="grid size-10 place-items-center rounded-full bg-slate-50 text-slate-700">{icon}</div>
+      <div className="min-w-0 space-y-1">
+        <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-400">{title}</p>
+        <p className={`text-sm font-semibold text-slate-900 ${mono ? "font-mono break-all" : "truncate"}`}>{value}</p>
+      </div>
     </div>
   );
 }

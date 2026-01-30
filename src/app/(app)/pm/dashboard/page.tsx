@@ -4,7 +4,6 @@ import { createSupabaseServiceClient } from "@/utils/supabase-service";
 import { ChartData, ProjectDistributionChart } from "@/app/(app)/pm/approvals/project-distribution-chart";
 import { ProjectHealthChart, ProjectHealthData } from "@/app/(app)/pm/dashboard/project-health-chart";
 import { NeedsAttentionCard, NeedsAttentionItem } from "@/app/(app)/pm/dashboard/needs-attention-card";
-import { ProjectsAttentionTable, ProjectAttention } from "@/app/(app)/pm/dashboard/projects-attention-table";
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -20,12 +19,13 @@ const stageDefinitions = [
 const stageOrder = stageDefinitions.map((stage) => stage.id);
 
 function normalizeStageId(stageId?: string | null) {
-  const input = (stageId ?? "").toLowerCase();
+  const input = (stageId ?? "").toLowerCase().trim();
   if (!input) return stageOrder[0];
   const match = stageDefinitions.find(
     (stage) =>
       stage.id === stageId ||
       stage.code.toLowerCase() === input ||
+      input.includes(stage.code.toLowerCase()) ||
       stage.aliases.some((alias) => input.includes(alias.toLowerCase()))
   );
   return match?.id ?? stageOrder[0];
@@ -35,7 +35,6 @@ type DashboardData = {
   chartData: ChartData[];
   projectHealth: ProjectHealthData;
   needsAttention: NeedsAttentionItem[];
-  projectsRequiringAttention: ProjectAttention[];
   totalProjects: number;
 };
 
@@ -48,7 +47,6 @@ async function loadDashboardStats(): Promise<DashboardData> {
     chartData: [],
     projectHealth: { onTrack: 0, atRisk: 0, delayed: 0 },
     needsAttention: [],
-    projectsRequiringAttention: [],
     totalProjects: 0,
   };
 
@@ -138,12 +136,25 @@ async function loadDashboardStats(): Promise<DashboardData> {
       const approvalsMap = new Map<string, string>();
       stageApprovals.forEach((row) => approvalsMap.set(normalizeStageId(row.stage_id), row.status ?? "Pending"));
 
-      let currentStageId = stageOrder[0];
+      let currentStageId = stageOrder[stageOrder.length - 1];
+      let foundPending = false;
       for (const stage of stageOrder) {
         const status = approvalsMap.get(stage);
         if (status === "Approved") continue;
         currentStageId = stage;
+        foundPending = true;
         break;
+      }
+      if (!foundPending) {
+        currentStageId = stageOrder[stageOrder.length - 1];
+      }
+      // Fallback gunakan progress numeric jika tidak ada approvals
+      if (!stageApprovals.length && typeof project.progress === "number") {
+        const idx = Math.min(
+          stageOrder.length - 1,
+          Math.max(0, Math.floor((project.progress / 100) * stageOrder.length))
+        );
+        currentStageId = stageOrder[idx];
       }
 
       const meta = stageDefinitions.find((s) => s.id === currentStageId);
@@ -266,26 +277,6 @@ async function loadDashboardStats(): Promise<DashboardData> {
     const priorityOrder = { approval: 0, overdue: 1, risk: 2, stale: 3 };
     needsAttention.sort((a, b) => priorityOrder[a.type] - priorityOrder[b.type]);
 
-    // Build Projects Requiring Attention (top 3)
-    const projectsRequiringAttention: ProjectAttention[] = projectDetails
-      .filter(p => p.hasPendingApproval || p.overdueTasks > 0 || p.healthStatus !== "onTrack")
-      .sort((a, b) => {
-        if (a.hasPendingApproval !== b.hasPendingApproval) return a.hasPendingApproval ? -1 : 1;
-        if (a.overdueTasks !== b.overdueTasks) return b.overdueTasks - a.overdueTasks;
-        const statusOrder = { delayed: 0, atRisk: 1, onTrack: 2 };
-        return statusOrder[a.healthStatus] - statusOrder[b.healthStatus];
-      })
-      .slice(0, 3)
-      .map(p => ({
-        id: p.id,
-        name: p.name,
-        code: p.code,
-        stage: p.stage,
-        status: p.healthStatus === "delayed" ? "Delayed" : p.healthStatus === "atRisk" ? "At Risk" : p.status,
-        hasPendingApproval: p.hasPendingApproval,
-        overdueTasks: p.overdueTasks,
-      }));
-
     // Chart data
     const chartData = stageDefinitions.map((def) => ({
       label: def.code,
@@ -302,7 +293,6 @@ async function loadDashboardStats(): Promise<DashboardData> {
       chartData,
       projectHealth,
       needsAttention: needsAttention.slice(0, 5),
-      projectsRequiringAttention,
       totalProjects,
     };
   } catch (error) {
@@ -312,8 +302,8 @@ async function loadDashboardStats(): Promise<DashboardData> {
 }
 
 export default async function PMDashboardPage() {
-  const profile = await getCurrentUserProfile();
-  const { chartData, projectHealth, needsAttention, projectsRequiringAttention, totalProjects } = await loadDashboardStats();
+  await getCurrentUserProfile();
+  const { chartData, projectHealth, needsAttention, totalProjects } = await loadDashboardStats();
 
   return (
     <main className="space-y-6">
@@ -330,10 +320,7 @@ export default async function PMDashboardPage() {
       {/* 3. Project Health Status */}
       <ProjectHealthChart data={projectHealth} />
 
-      {/* 4. Projects Requiring Attention (Top 3) */}
-      <ProjectsAttentionTable projects={projectsRequiringAttention} />
-
-      {/* 5. Project Distribution - conditional (≥3 projects) */}
+      {/* Project Distribution - conditional (≥3 projects) */}
       {totalProjects >= 3 && <ProjectDistributionChart data={chartData} />}
     </main>
   );

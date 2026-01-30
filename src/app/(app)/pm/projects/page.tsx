@@ -3,6 +3,35 @@ import { type ProjectRow } from "@/app/(app)/pm/projects/projects-client";
 import { createSupabaseServiceClient } from "@/utils/supabase-service";
 
 async function loadProjects(): Promise<ProjectRow[]> {
+  const stageDefinitions = [
+    { id: "stage-1", code: "F1", title: "Initiation", aliases: ["F1", "Initiation"] },
+    { id: "stage-2", code: "F2", title: "Planning", aliases: ["F2", "Planning"] },
+    { id: "stage-3", code: "F3", title: "Execution", aliases: ["F3", "Execution"] },
+    { id: "stage-4", code: "F4", title: "Monitoring", aliases: ["F4", "Monitoring"] },
+    { id: "stage-5", code: "F5", title: "Closure", aliases: ["F5", "Closure"] },
+  ];
+  const stageProgressOrder = stageDefinitions.map((s) => s.id);
+  const stageWeight = 100 / stageProgressOrder.length;
+  const labelMap: Record<string, string> = {
+    "stage-1": "F1 - Initiation",
+    "stage-2": "F2 - Planning",
+    "stage-3": "F3 - Execution",
+    "stage-4": "F4 - Monitoring",
+    "stage-5": "F5 - Closure",
+  };
+  function normalizeStageId(stageId?: string | null) {
+    const input = (stageId ?? "").toLowerCase().trim();
+    if (!input) return stageProgressOrder[0];
+    const match = stageDefinitions.find(
+      (stage) =>
+        stage.id === stageId ||
+        stage.code.toLowerCase() === input ||
+        input.includes(stage.code.toLowerCase()) ||
+        stage.aliases.some((alias) => input.includes(alias.toLowerCase()))
+    );
+    return match?.id ?? stageProgressOrder[0];
+  }
+
   try {
     const supabase = await createSupabaseServiceClient();
     const { data, error } = await supabase
@@ -27,15 +56,15 @@ async function loadProjects(): Promise<ProjectRow[]> {
       approvalsByProject = (approvals ?? []).reduce<Record<string, any[]>>((acc, row) => {
         const key = row.project_id;
         acc[key] = acc[key] ?? [];
-        acc[key].push(row);
+        acc[key].push({
+          ...row,
+          stage_id: normalizeStageId(row.stage_id),
+        });
         return acc;
       }, {});
     }
 
     // Progress derived dari stage approval (F1-F5 = 20% masing-masing)
-    const stageProgressOrder = ["stage-1", "stage-2", "stage-3", "stage-4", "stage-5"];
-    const stageWeight = 100 / stageProgressOrder.length;
-
     return (
       data?.map((row: any) => ({
         id: typeof row.id === "string" && row.id.trim() ? row.id : row.code ?? null,
@@ -53,29 +82,38 @@ async function loadProjects(): Promise<ProjectRow[]> {
           const approvals: any[] = approvalsByProject[row.id] ?? [];
           const completedStages = approvals
             .filter((a) => String(a.status).toLowerCase() === "approved")
-            .map((a) => a.stage_id);
-          if (!completedStages.length) return 0;
-          const maxIndex = completedStages
-            .map((id) => stageProgressOrder.indexOf(id))
-            .reduce((max, idx) => (idx > max ? idx : max), -1);
-          if (maxIndex < 0) return 0;
-          return Math.min(100, Math.round((maxIndex + 1) * stageWeight));
+            .map((a) => normalizeStageId(a.stage_id));
+          if (completedStages.length) {
+            const maxIndex = completedStages
+              .map((id) => stageProgressOrder.indexOf(id))
+              .reduce((max, idx) => (idx > max ? idx : max), -1);
+            if (maxIndex >= 0) {
+              return Math.min(100, Math.round((maxIndex + 1) * stageWeight));
+            }
+          }
+          // fallback ke progress tersimpan
+          if (typeof row.progress === "number") return row.progress;
+          return 0;
         })(),
         lead: row.lead ?? "Unassigned",
         stageLabel: (() => {
           const approvals: any[] = approvalsByProject[row.id] ?? [];
+          const normalized = approvals.map((a) => ({ ...a, stage_id: normalizeStageId(a.stage_id) }));
           const pendingStage = stageProgressOrder.find((stageId) => {
-            const status = approvals.find((a) => a.stage_id === stageId)?.status;
+            const status = normalized.find((a) => a.stage_id === stageId)?.status;
             return String(status).toLowerCase() !== "approved";
           });
-          const currentStage = pendingStage ?? stageProgressOrder[stageProgressOrder.length - 1];
-          const labelMap: Record<string, string> = {
-            "stage-1": "F1 - Initiation",
-            "stage-2": "F2 - Planning",
-            "stage-3": "F3 - Execution",
-            "stage-4": "F4 - Monitoring",
-            "stage-5": "F5 - Closure",
-          };
+          let currentStage = pendingStage ?? stageProgressOrder[stageProgressOrder.length - 1];
+
+          // fallback: gunakan progress numeric jika approvals kosong
+          if (!approvals.length && typeof row.progress === "number") {
+            const idx = Math.min(
+              stageProgressOrder.length - 1,
+              Math.max(0, Math.floor((row.progress / 100) * stageProgressOrder.length))
+            );
+            currentStage = stageProgressOrder[idx];
+          }
+
           return labelMap[currentStage] ?? currentStage;
         })(),
         updated: row.updated_at ?? row.created_at ?? null,
