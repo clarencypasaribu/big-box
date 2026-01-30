@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { AlertTriangle, ChevronRight, CheckCircle2 } from "lucide-react";
+import { AlertTriangle, ChevronRight, CheckCircle2, X } from "lucide-react";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
 
@@ -14,6 +14,7 @@ export function BlockerPreviewClient() {
     const [blockerCount, setBlockerCount] = useState<number | null>(null);
     const [loading, setLoading] = useState(true);
     const [visible, setVisible] = useState(true);
+    const [isFading, setIsFading] = useState(false);
 
     useEffect(() => {
         async function fetchBlockers() {
@@ -36,10 +37,18 @@ export function BlockerPreviewClient() {
 
     useEffect(() => {
         if (blockerCount === 0) {
-            const timer = setTimeout(() => {
+            const fadeTimer = setTimeout(() => {
+                setIsFading(true);
+            }, 5500);
+
+            const removeTimer = setTimeout(() => {
                 setVisible(false);
-            }, 5000); // Disappear after 5 seconds to give enough time to read
-            return () => clearTimeout(timer);
+            }, 6000);
+
+            return () => {
+                clearTimeout(fadeTimer);
+                clearTimeout(removeTimer);
+            };
         }
     }, [blockerCount]);
 
@@ -49,9 +58,20 @@ export function BlockerPreviewClient() {
         if (!visible) return null;
 
         return (
-            <div className="flex items-center gap-2 rounded-lg border border-emerald-100 bg-emerald-50/50 px-4 py-2.5 text-sm text-emerald-700 animate-in fade-in slide-in-from-top-1 transition-opacity duration-500">
-                <CheckCircle2 className="size-4 shrink-0" />
-                <span className="font-medium">You have no active blockers. Keep it up!</span>
+            <div className={cn(
+                "flex items-center justify-between rounded-lg border border-emerald-100 bg-emerald-50/50 px-4 py-2.5 text-sm text-emerald-700 transition-opacity duration-500",
+                isFading ? "opacity-0" : "opacity-100"
+            )}>
+                <div className="flex items-center gap-2">
+                    <CheckCircle2 className="size-4 shrink-0" />
+                    <span className="font-medium">You have no active blockers. Keep it up!</span>
+                </div>
+                <button
+                    onClick={() => setVisible(false)}
+                    className="ml-auto rounded-full p-1 hover:bg-emerald-100/50 text-emerald-600 transition-colors"
+                >
+                    <X className="size-4" />
+                </button>
             </div>
         )
     }

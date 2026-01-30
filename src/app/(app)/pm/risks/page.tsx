@@ -22,7 +22,6 @@ async function loadRiskStats(): Promise<RiskCounts> {
   const activeBlockers = blockers?.filter((b) => b.status === "Open") ?? [];
   const resolvedBlockers = blockers?.filter((b) => b.status === "Resolved") ?? [];
 
-  // Logic for Critical: Open blockers older than 3 days
   const criticalThreshold = new Date();
   criticalThreshold.setDate(now.getDate() - 3);
   const criticalBlockers = activeBlockers.filter((b) => new Date(b.created_at) < criticalThreshold);
@@ -32,8 +31,6 @@ async function loadRiskStats(): Promise<RiskCounts> {
     return updated >= today;
   });
 
-  // Calculate trends (mock logic for "today" vs "yesterday" as we only have current snapshot, 
-  // but for resolved we know exact count today)
 
   return {
     active: activeBlockers.length,
@@ -97,7 +94,7 @@ async function loadTeamMembers() {
     id: p.id,
     name: p.full_name || "Unknown",
     role: p.role || "Team Member",
-    activeTasks: 0, // Placeholder
+    activeTasks: 0,
   })) || [];
 }
 

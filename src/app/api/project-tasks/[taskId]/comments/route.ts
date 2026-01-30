@@ -22,7 +22,7 @@ export async function GET(
             .from("task_comments")
             .select("*")
             .eq("task_id", taskId)
-            .order("created_at", { ascending: false });
+            .order("created_at", { ascending: true });
 
         if (error) {
             return NextResponse.json({ data: [], message: error.message }, { status: 400 });

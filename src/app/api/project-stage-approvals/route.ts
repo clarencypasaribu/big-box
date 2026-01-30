@@ -2,6 +2,8 @@ import { NextResponse } from "next/server";
 
 import { createSupabaseServiceClient } from "@/utils/supabase-service";
 
+export const dynamic = "force-dynamic";
+
 function getBearerToken(request: Request) {
   const header = request.headers.get("authorization") || request.headers.get("Authorization");
   if (!header) return null;

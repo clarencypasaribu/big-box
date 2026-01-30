@@ -14,6 +14,8 @@ function hasSupabaseAuthCookie(request: Request) {
   return cookieHeader.includes("sb-") || cookieHeader.includes("supabase-auth-token");
 }
 
+import { createSupabaseServerClient } from "@/utils/supabase-server";
+
 async function getUserId(request: Request) {
   const token = getBearerToken(request);
   if (token) {
@@ -22,10 +24,9 @@ async function getUserId(request: Request) {
     if (!error && data.user?.id) return data.user.id;
   }
 
-  if (!hasSupabaseAuthCookie(request)) return null;
-
+  // Use the new server client which respects cookies
   try {
-    const supabase = await createSupabaseServiceClient({ allowWrite: true });
+    const supabase = await createSupabaseServerClient({ allowWrite: true });
     const {
       data: { user },
     } = await supabase.auth.getUser();
@@ -69,6 +70,7 @@ export async function PATCH(
       requested_by: existing?.requested_by ?? body.requestedBy ?? userId ?? null,
       approved_by: body.approvedBy ?? userId ?? existing?.approved_by ?? null,
       approved_at: status === "Approved" ? new Date().toISOString() : null,
+      comment: body.comment !== undefined ? String(body.comment).trim() : null, // Explicitly handle comment update
     };
 
     const { data, error } = await supabase

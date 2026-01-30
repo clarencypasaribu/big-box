@@ -45,6 +45,7 @@ type ColumnCard = {
   highlight?: "indigo" | "amber" | "emerald";
   done?: boolean;
   taskId?: string;
+  createdByName?: string;
 };
 
 type Column = {
@@ -199,9 +200,11 @@ function normalizeColumns(columns: Column[]) {
 export function ProjectBoardClient({
   projectName,
   projectId,
+  currentUserName,
 }: {
   projectName: string;
   projectId: string;
+  currentUserName?: string;
 }) {
   const router = useRouter();
   const ignoreNextNavRef = useRef(false);
@@ -268,9 +271,18 @@ export function ProjectBoardClient({
       const commentsMap: Record<string, string> = {};
 
       approvalsBody.data?.forEach((row: any) => {
+        const normalizedId = normalizeStageId(row.stage_id);
+        // Map both raw and normalized IDs to be safe
         approvalsMap[row.stage_id] = row.status as ApprovalStatus;
+        if (normalizedId && normalizedId !== row.stage_id) {
+          approvalsMap[normalizedId] = row.status as ApprovalStatus;
+        }
+
         if (row.comment) {
           commentsMap[row.stage_id] = row.comment;
+          if (normalizedId && normalizedId !== row.stage_id) {
+            commentsMap[normalizedId] = row.comment;
+          }
         }
       });
 
@@ -290,9 +302,10 @@ export function ProjectBoardClient({
           description: task.description ?? "",
           priority: task.priority ?? "Medium",
           dueDate: task.due_date ?? undefined,
-          comments: 0,
-          files: 0,
+          comments: task.comments_count ?? 0,
+          files: task.files_count ?? 0,
           done: task.status === "Done" || task.status === "Completed",
+          createdByName: task.created_by_name,
         }));
         const allDone = cards.length > 0 && cards.every((card) => card.done);
         const approvalStatus: ApprovalStatus =
@@ -472,768 +485,825 @@ export function ProjectBoardClient({
               No tasks in this project yet. Add tasks to each stage.
             </div>
           ) : null}
-          <div className="grid gap-4 lg:grid-cols-3">
-            {visibleColumns.map((column) => (
-              <section
-                key={column.id}
-                className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm"
-              >
-                {(() => {
-                  const stageIndex = getStageIndex(column.id);
-                  const previousStageId = stageIndex > 0 ? stageOrder[stageIndex - 1] : null;
-                  const previousApproved =
-                    stageIndex === 0
-                      ? true
-                      : stageApprovals[previousStageId ?? ""] === "Approved";
-                  const isLocked = !previousApproved;
-                  const approvalStatus = stageApprovals[column.id] ?? "Not Submitted";
-                  const approvalLabel =
-                    approvalStatus === "Pending"
-                      ? "Awaiting Approval"
-                      : approvalStatus === "Approved"
-                        ? "Approved"
-                        : "Kirim Approval";
-                  return (
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <p className="text-sm font-semibold text-slate-900">{column.title}</p>
-                        <div className="mt-1 flex items-center gap-2">
-                          {/* Task Count */}
-                          <span className="rounded-md bg-slate-100 px-2 py-1 text-xs font-semibold text-slate-600">
-                            {column.cards.filter((c) => c.done).length}/{column.cards.length} tasks
-                          </span>
-                          {/* Stage Deadline */}
-                          {stageDeadlines[column.id] ? (
-                            <span className="flex items-center gap-1 rounded-md bg-blue-50 px-2 py-1 text-xs font-medium text-blue-600">
-                              <CalendarClock className="size-3" />
-                              {new Date(stageDeadlines[column.id]).toLocaleDateString("id-ID", { day: "numeric", month: "short", year: "numeric" })}
-                            </span>
-                          ) : (
-                            <span className="text-xs text-slate-400">No deadline set</span>
-                          )}
-                        </div>
-                        <div className="mt-2 flex flex-col gap-2">
-                          <div className="flex flex-wrap items-center gap-2">
-                            <span
-                              className={cn(
-                                "rounded-md px-2 py-1 text-xs font-semibold",
-                                approvalTone[approvalStatus] ?? "bg-slate-100 text-slate-600"
-                              )}
-                            >
-                              {approvalStatus}
-                            </span>
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              className={cn(
-                                "h-7 px-2 text-xs",
-                                approvalStatus === "Rejected" && "border-rose-200 text-rose-600 hover:bg-rose-50 hover:text-rose-700"
-                              )}
-                              disabled={
-                                approvalStatus === "Pending" ||
-                                approvalStatus === "Approved" ||
-                                isLocked ||
-                                column.cards.length === 0 ||
-                                column.cards.some((card) => !card.done)
-                              }
-                              onClick={async (event) => {
-                                // Prevent any potential form submission or bubbling
-                                event.preventDefault();
-                                try {
-                                  const res = await fetch("/api/project-stage-approvals", {
-                                    method: "POST",
-                                    headers: { "Content-Type": "application/json" },
-                                    body: JSON.stringify({
-                                      projectId,
-                                      stageId: column.id,
-                                      status: "Pending",
-                                    }),
-                                  });
-                                  if (!res.ok) {
-                                    const body = await res.json().catch(() => ({}));
-                                    alert(body.message || "Failed to submit approval.");
-                                    return;
-                                  }
-                                  await refreshProjectData({ silent: true });
-                                } catch (err) {
-                                  alert("An error occurred while submitting the approval.");
-                                }
-                              }}
-                            >
-                              {approvalLabel}
-                            </Button>
-                            {isLocked ? (
-                              <div className="flex items-center gap-1 text-xs text-slate-400">
-                                <Lock className="size-3" />
-                                Waiting for the previous stage approval
-                              </div>
-                            ) : null}
-                          </div>
 
-                          {approvalStatus === "Rejected" && approvalComments[column.id] ? (
-                            <div className="animate-in fade-in zoom-in-95 duration-200 mt-1 rounded-md border border-rose-200 bg-rose-50 p-2 text-xs text-rose-800">
-                              <p className="font-semibold mb-0.5">⚠️ Rejection Reason:</p>
-                              <p>{approvalComments[column.id]}</p>
+          {Object.keys(stageApprovals).length >= 5 && Object.values(stageApprovals).filter(s => s === "Approved").length === 5 && (
+            <div className="mb-4 rounded-2xl border border-emerald-200 bg-emerald-50 p-4 text-emerald-800">
+              <div className="flex items-center gap-2">
+                <span className="flex size-6 items-center justify-center rounded-full bg-emerald-200 text-emerald-700">✓</span>
+                <p className="font-semibold">Project Completed</p>
+              </div>
+              <p className="ml-8 mt-1 text-sm text-emerald-700">
+                All stages have been approved. This project is now closed for new tasks.
+              </p>
+            </div>
+          )}
+
+          <div className="grid gap-4 lg:grid-cols-3">
+            {visibleColumns.map((column) => {
+              const stageIndex = getStageIndex(column.id);
+              const previousStageId = stageIndex > 0 ? stageOrder[stageIndex - 1] : null;
+              const previousApproved =
+                stageIndex === 0
+                  ? true
+                  : stageApprovals[previousStageId ?? ""] === "Approved";
+              const isLocked = !previousApproved;
+              const approvalStatus = stageApprovals[column.id] ?? "Not Submitted";
+
+              const approvalLabel =
+                approvalStatus === "Pending"
+                  ? "Awaiting Approval"
+                  : approvalStatus === "Approved"
+                    ? "Approved"
+                    : "Kirim Approval";
+
+              return (
+                <section
+                  key={column.id}
+                  className={cn(
+                    "rounded-2xl border border-slate-200 bg-white p-4 shadow-sm transition-opacity",
+                    (stageApprovals[column.id] === "Approved") && "opacity-75"
+                  )}
+                >
+                  <div className="flex items-center justify-between">
+                    {/* ... header content ... */}
+                    <div>
+                      <p className="text-sm font-semibold text-slate-900">{column.title}</p>
+                      <div className="mt-1 flex items-center gap-2">
+                        <span className="rounded-md bg-slate-100 px-2 py-1 text-xs font-semibold text-slate-600">
+                          {column.cards.filter((c) => c.done).length}/{column.cards.length} tasks
+                        </span>
+                        {stageDeadlines[column.id] ? (
+                          <span className="flex items-center gap-1 rounded-md bg-blue-50 px-2 py-1 text-xs font-medium text-blue-600">
+                            <CalendarClock className="size-3" />
+                            {new Date(stageDeadlines[column.id]).toLocaleDateString("id-ID", { day: "numeric", month: "short", year: "numeric" })}
+                          </span>
+                        ) : (
+                          <span className="text-xs text-slate-400">No deadline set</span>
+                        )}
+                      </div>
+                      <div className="mt-2 flex flex-col gap-2">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <span
+                            className={cn(
+                              "rounded-md px-2 py-1 text-xs font-semibold",
+                              approvalTone[approvalStatus] ?? "bg-slate-100 text-slate-600"
+                            )}
+                          >
+                            {approvalStatus}
+                          </span>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className={cn(
+                              "h-7 px-2 text-xs",
+                              approvalStatus === "Rejected" && "border-rose-200 text-rose-600 hover:bg-rose-50 hover:text-rose-700"
+                            )}
+                            disabled={
+                              approvalStatus === "Pending" ||
+                              approvalStatus === "Approved" ||
+                              isLocked ||
+                              column.cards.length === 0 ||
+                              column.cards.some((card) => !card.done)
+                            }
+                            onClick={async (event) => {
+                              event.preventDefault();
+                              try {
+                                const res = await fetch("/api/project-stage-approvals", {
+                                  method: "POST",
+                                  headers: { "Content-Type": "application/json" },
+                                  body: JSON.stringify({
+                                    projectId,
+                                    stageId: column.id,
+                                    status: "Pending",
+                                  }),
+                                });
+                                if (!res.ok) {
+                                  const body = await res.json().catch(() => ({}));
+                                  alert(body.message || "Failed to submit approval.");
+                                  return;
+                                }
+                                await refreshProjectData({ silent: true });
+                              } catch (err) {
+                                alert("An error occurred while submitting the approval.");
+                              }
+                            }}
+                          >
+                            {approvalLabel}
+                          </Button>
+                          {isLocked ? (
+                            <div className="flex items-center gap-1 text-xs text-slate-400">
+                              <Lock className="size-3" />
+                              Waiting for the previous stage approval
                             </div>
                           ) : null}
                         </div>
+
+                        {approvalStatus === "Rejected" ? (
+                          <div className="mt-2">
+                            {/* Rejection Note */}
+                            <details className="group">
+                              <summary className="flex cursor-pointer items-center gap-1.5 text-xs font-semibold text-rose-600 hover:text-rose-700 select-none">
+                                <span className="size-2 rounded-full bg-rose-500" />
+                                View note
+                                <ChevronDown className="size-3 transition-transform group-open:rotate-180" />
+                              </summary>
+                              <div className="mt-2 animate-in fade-in slide-in-from-top-1 rounded-md border border-rose-200 bg-rose-50 p-3 shadow-sm">
+                                <div className="mb-1 flex items-center gap-1.5 border-b border-rose-200/60 pb-1.5">
+                                  <span className="text-[10px] uppercase font-bold tracking-wider text-rose-800">
+                                    Rejection Note
+                                  </span>
+                                </div>
+                                <p className="text-xs leading-relaxed text-rose-900 break-words whitespace-pre-wrap">
+                                  {approvalComments[column.id] || "No additional notes provided."}
+                                </p>
+                              </div>
+                            </details>
+                          </div>
+                        ) : null}
                       </div>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-8 w-8"
-                        disabled={isLocked}
-                        onClick={() => {
-                          setAddTaskStage(column.title);
-                          setTaskName("");
-                          setTaskMember("Select Member");
-                          setTaskPriority("Select Priority");
-                          setTaskDueDate("");
-                          setTaskDescription("");
-                          setAddTaskOpen(true);
-                        }}
-                      >
-                        <Plus className="size-4 text-slate-500" />
-                      </Button>
                     </div>
-                  );
-                })()}
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-8 w-8"
+                      disabled={isLocked || approvalStatus === "Approved" || (Object.keys(stageApprovals).length >= 5 && Object.values(stageApprovals).filter(s => s === "Approved").length === 5)}
+                      onClick={() => {
+                        setAddTaskStage(column.title);
+                        setTaskName("");
+                        setTaskMember("Select Member");
+                        setTaskPriority("Select Priority");
+                        setTaskDueDate("");
+                        setTaskDescription("");
+                        setAddTaskOpen(true);
+                      }}
+                    >
+                      <Plus className="size-4 text-slate-500" />
+                    </Button>
+                  </div>
 
-                <div className="mt-4 space-y-4">
-                  {column.cards
-                    .map((card, index) => ({ card, index }))
-                    .sort(
-                      (a, b) =>
-                        Number(Boolean(b.card.done)) - Number(Boolean(a.card.done)) ||
-                        a.index - b.index
-                    )
-                    .map(({ card }) => {
-                      const isDone = Boolean(card.done);
-                      return (
-                        <div
-                          key={card.id}
-                          className={cn(
-                            "group relative flex flex-col gap-3 rounded-xl border p-4 shadow-sm transition-all hover:shadow-md",
-                            isDone
-                              ? "border-emerald-200 bg-emerald-50/50"
-                              : "border-slate-200 bg-white hover:border-slate-300"
-                          )}
-                        >
 
-                          {/* Header: Priority + Menu */}
-                          <div className="flex items-center justify-between">
-                            <span
-                              className={cn(
-                                "rounded-full px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wide",
-                                card.priority === "High" && "bg-rose-100 text-rose-700",
-                                card.priority === "Medium" && "bg-amber-100 text-amber-700",
-                                card.priority === "Low" && "bg-emerald-100 text-emerald-700",
-                                !card.priority && "bg-slate-100 text-slate-600"
+                  <div className="mt-4 space-y-4">
+                    {column.cards
+                      .map((card, index) => ({ card, index }))
+                      .sort(
+                        (a, b) =>
+                          Number(Boolean(b.card.done)) - Number(Boolean(a.card.done)) ||
+                          a.index - b.index
+                      )
+                      .map(({ card }) => {
+                        const isDone = Boolean(card.done);
+                        return (
+                          <div
+                            key={card.id}
+                            className={cn(
+                              "group relative flex flex-col gap-3 rounded-xl border p-4 shadow-sm transition-all hover:shadow-md",
+                              isDone
+                                ? "border-emerald-200 bg-emerald-50/50"
+                                : "border-slate-200 bg-white hover:border-slate-300"
+                            )}
+                          >
+
+                            {/* Header: Priority + Menu */}
+                            <div className="flex items-center justify-between">
+                              <span
+                                className={cn(
+                                  "rounded-full px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wide",
+                                  card.priority === "High" && "bg-rose-100 text-rose-700",
+                                  card.priority === "Medium" && "bg-amber-100 text-amber-700",
+                                  card.priority === "Low" && "bg-emerald-100 text-emerald-700",
+                                  !card.priority && "bg-slate-100 text-slate-600"
+                                )}
+                              >
+                                {card.priority || "No"} Priority
+                              </span>
+                              <DropdownMenu>
+                                {!isLocked && approvalStatus !== "Approved" && (
+                                  <DropdownMenuTrigger asChild>
+                                    <button
+                                      type="button"
+                                      data-no-nav="true"
+                                      className="rounded p-1 text-slate-400 opacity-0 transition-opacity hover:bg-slate-100 hover:text-slate-600 group-hover:opacity-100"
+                                      onClick={(event) => {
+                                        event.preventDefault();
+                                        event.stopPropagation();
+                                        ignoreNextNavRef.current = true;
+                                      }}
+                                    >
+                                      <svg className="size-4" fill="currentColor" viewBox="0 0 20 20">
+                                        <path d="M10 6a2 2 0 110-4 2 2 0 010 4zM10 12a2 2 0 110-4 2 2 0 010 4zM10 18a2 2 0 110-4 2 2 0 010 4z" />
+                                      </svg>
+                                    </button>
+                                  </DropdownMenuTrigger>
+                                )}
+                                <DropdownMenuContent align="end" className="w-36">
+                                  <DropdownMenuItem
+                                    onSelect={async (event) => {
+                                      event.stopPropagation();
+                                      ignoreNextNavRef.current = true;
+                                      const nextDone = !card.done;
+                                      const applyDoneState = (value: boolean) => {
+                                        updateColumns((source) =>
+                                          source.map((column) => {
+                                            if (!column.cards.some((item) => item.id === card.id)) {
+                                              return column;
+                                            }
+                                            const nextCards = column.cards.map((item) =>
+                                              item.id === card.id ? { ...item, done: value } : item
+                                            );
+                                            const allDone =
+                                              nextCards.length > 0 && nextCards.every((item) => item.done);
+                                            const nextStatus =
+                                              nextCards.length === 0
+                                                ? getStageIndex(column.id) === 0
+                                                  ? "Active"
+                                                  : "Pending"
+                                                : allDone
+                                                  ? "Completed"
+                                                  : "Active";
+                                            return {
+                                              ...column,
+                                              status: nextStatus,
+                                              cards: nextCards,
+                                            };
+                                          })
+                                        );
+                                      };
+                                      applyDoneState(nextDone);
+                                      const taskId = card.taskId;
+                                      if (!taskId) return;
+                                      try {
+                                        const statusCandidates = nextDone
+                                          ? ["Done", "Completed"]
+                                          : ["In Progress", "Active"];
+                                        let requestOk = false;
+                                        for (const status of statusCandidates) {
+                                          const res = await fetch(`/api/project-tasks/${taskId}`, {
+                                            method: "PATCH",
+                                            headers: { "Content-Type": "application/json" },
+                                            body: JSON.stringify({ status }),
+                                          });
+                                          if (res.ok) {
+                                            requestOk = true;
+                                            break;
+                                          }
+                                        }
+                                        if (!requestOk) {
+                                          applyDoneState(!nextDone);
+                                          await refreshProjectData({ silent: true });
+                                        }
+                                      } finally {
+                                        // no-op: keep optimistic state unless we detect a failure
+                                      }
+                                    }}
+                                  >
+                                    {card.done ? "Mark as Undone" : "Mark as Done"}
+                                  </DropdownMenuItem>
+                                  <DropdownMenuItem
+                                    onSelect={(event) => {
+                                      event.stopPropagation();
+                                      ignoreNextNavRef.current = true;
+                                      setEditTaskId(card.id);
+                                      setEditTaskStageId(column.id);
+                                      setEditTaskName(card.title);
+                                      setEditTaskPriority(card.priority ?? "Medium");
+                                      setEditTaskDescription(card.description ?? "");
+                                      setEditTaskDueDate(card.dueDate ?? "");
+                                      setEditTaskOpen(true);
+                                    }}
+                                  >
+                                    Edit task
+                                  </DropdownMenuItem>
+                                  <DropdownMenuItem
+                                    className="text-rose-600 focus:text-rose-600"
+                                    onSelect={(event) => {
+                                      event.stopPropagation();
+                                      ignoreNextNavRef.current = true;
+                                      if (!window.confirm("Are you sure you want to delete this task?")) return;
+                                      if (!card.taskId) return;
+                                      fetch(`/api/project-tasks/${card.taskId}`, {
+                                        method: "DELETE",
+                                      })
+                                        .then((res) => {
+                                          if (!res.ok) return;
+                                          return refreshProjectData({ silent: true });
+                                        })
+                                        .catch(() => undefined)
+                                        .finally(() => {
+                                          if (editTaskId === card.id) {
+                                            setEditTaskOpen(false);
+                                          }
+                                        });
+                                    }}
+                                  >
+                                    Delete task
+                                  </DropdownMenuItem>
+                                </DropdownMenuContent>
+                              </DropdownMenu>
+                            </div>
+
+                            {/* Title + Description + Creator */}
+                            <div className="flex-1 space-y-1">
+                              <p className={cn(
+                                "text-sm font-semibold leading-snug",
+                                isDone ? "text-slate-600 line-through" : "text-slate-900"
+                              )}>
+                                {card.title}
+                              </p>
+                              {card.description && (
+                                <p className="text-xs text-slate-500 line-clamp-2">
+                                  {card.description}
+                                </p>
                               )}
-                            >
-                              {card.priority || "No"} Priority
-                            </span>
-                            <DropdownMenu>
-                              <DropdownMenuTrigger asChild>
+                              {card.createdByName && card.createdByName !== currentUserName && (
+                                <p className="text-[10px] text-slate-400">
+                                  Created by <span className="font-medium text-slate-600">{card.createdByName}</span>
+                                </p>
+                              )}
+                            </div>
+
+                            {/* Footer: Due Date + Actions */}
+                            <div className="flex items-center justify-between border-t border-slate-100 pt-3">
+                              <div className={cn(
+                                "flex items-center gap-1.5 rounded-md px-2 py-1 text-xs font-medium",
+                                card.dueDate && new Date(card.dueDate) < new Date() && !isDone
+                                  ? "bg-rose-50 text-rose-600"
+                                  : "bg-slate-100 text-slate-600"
+                              )}>
+                                <CalendarClock className="size-3" />
+                                {card.dueDate
+                                  ? new Date(card.dueDate).toLocaleDateString("id-ID", { day: "numeric", month: "short" })
+                                  : "No due date"}
+                              </div>
+                              <div className="flex items-center gap-2">
                                 <button
                                   type="button"
                                   data-no-nav="true"
-                                  className="rounded p-1 text-slate-400 opacity-0 transition-opacity hover:bg-slate-100 hover:text-slate-600 group-hover:opacity-100"
+                                  className="flex items-center gap-1 rounded-md px-2 py-1 text-xs text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-700"
                                   onClick={(event) => {
                                     event.preventDefault();
                                     event.stopPropagation();
-                                    ignoreNextNavRef.current = true;
-                                  }}
-                                >
-                                  <svg className="size-4" fill="currentColor" viewBox="0 0 20 20">
-                                    <path d="M10 6a2 2 0 110-4 2 2 0 010 4zM10 12a2 2 0 110-4 2 2 0 010 4zM10 18a2 2 0 110-4 2 2 0 010 4z" />
-                                  </svg>
-                                </button>
-                              </DropdownMenuTrigger>
-                              <DropdownMenuContent align="end" className="w-36">
-                                <DropdownMenuItem
-                                  onSelect={async (event) => {
-                                    event.stopPropagation();
-                                    ignoreNextNavRef.current = true;
-                                    const nextDone = !card.done;
-                                    const applyDoneState = (value: boolean) => {
-                                      updateColumns((source) =>
-                                        source.map((column) => {
-                                          if (!column.cards.some((item) => item.id === card.id)) {
-                                            return column;
-                                          }
-                                          const nextCards = column.cards.map((item) =>
-                                            item.id === card.id ? { ...item, done: value } : item
-                                          );
-                                          const allDone =
-                                            nextCards.length > 0 && nextCards.every((item) => item.done);
-                                          const nextStatus =
-                                            nextCards.length === 0
-                                              ? getStageIndex(column.id) === 0
-                                                ? "Active"
-                                                : "Pending"
-                                              : allDone
-                                                ? "Completed"
-                                                : "Active";
-                                          return {
-                                            ...column,
-                                            status: nextStatus,
-                                            cards: nextCards,
-                                          };
-                                        })
-                                      );
-                                    };
-                                    applyDoneState(nextDone);
-                                    const taskId = card.taskId;
-                                    if (!taskId) return;
-                                    try {
-                                      const statusCandidates = nextDone
-                                        ? ["Done", "Completed"]
-                                        : ["In Progress", "Active"];
-                                      let requestOk = false;
-                                      for (const status of statusCandidates) {
-                                        const res = await fetch(`/api/project-tasks/${taskId}`, {
-                                          method: "PATCH",
-                                          headers: { "Content-Type": "application/json" },
-                                          body: JSON.stringify({ status }),
-                                        });
-                                        if (res.ok) {
-                                          requestOk = true;
-                                          break;
-                                        }
-                                      }
-                                      if (!requestOk) {
-                                        applyDoneState(!nextDone);
-                                        await refreshProjectData({ silent: true });
-                                      }
-                                    } finally {
-                                      // no-op: keep optimistic state unless we detect a failure
+                                    if (card.taskId) {
+                                      setActiveTaskId(card.taskId);
+                                      setCommentsOpen(true);
                                     }
                                   }}
                                 >
-                                  {card.done ? "Mark as Undone" : "Mark as Done"}
-                                </DropdownMenuItem>
-                                <DropdownMenuItem
-                                  onSelect={(event) => {
+                                  <MessageSquare className="size-3" />
+                                  <span>{commentsList.length > 0 && activeTaskId === card.taskId ? commentsList.length : card.comments}</span>
+                                </button>
+                                <button
+                                  type="button"
+                                  data-no-nav="true"
+                                  className="flex items-center gap-1 rounded-md px-2 py-1 text-xs text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-700"
+                                  onClick={(event) => {
+                                    event.preventDefault();
                                     event.stopPropagation();
-                                    ignoreNextNavRef.current = true;
-                                    setEditTaskId(card.id);
-                                    setEditTaskStageId(column.id);
-                                    setEditTaskName(card.title);
-                                    setEditTaskPriority(card.priority ?? "Medium");
-                                    setEditTaskDescription(card.description ?? "");
-                                    setEditTaskDueDate(card.dueDate ?? "");
-                                    setEditTaskOpen(true);
+                                    if (card.taskId) {
+                                      setActiveTaskId(card.taskId);
+                                      setFilesOpen(true);
+                                    }
                                   }}
                                 >
-                                  Edit task
-                                </DropdownMenuItem>
-                                <DropdownMenuItem
-                                  className="text-rose-600 focus:text-rose-600"
-                                  onSelect={(event) => {
-                                    event.stopPropagation();
-                                    ignoreNextNavRef.current = true;
-                                    if (!window.confirm("Are you sure you want to delete this task?")) return;
-                                    if (!card.taskId) return;
-                                    fetch(`/api/project-tasks/${card.taskId}`, {
-                                      method: "DELETE",
-                                    })
-                                      .then((res) => {
-                                        if (!res.ok) return;
-                                        return refreshProjectData();
-                                      })
-                                      .catch(() => undefined)
-                                      .finally(() => {
-                                        if (editTaskId === card.id) {
-                                          setEditTaskOpen(false);
-                                        }
-                                      });
-                                  }}
-                                >
-                                  Delete task
-                                </DropdownMenuItem>
-                              </DropdownMenuContent>
-                            </DropdownMenu>
-                          </div>
-
-                          {/* Title + Description */}
-                          <div className="flex-1 space-y-1">
-                            <p className={cn(
-                              "text-sm font-semibold leading-snug",
-                              isDone ? "text-slate-600 line-through" : "text-slate-900"
-                            )}>
-                              {card.title}
-                            </p>
-                            {card.description && (
-                              <p className="text-xs text-slate-500 line-clamp-2">
-                                {card.description}
-                              </p>
-                            )}
-                          </div>
-
-                          {/* Footer: Due Date + Actions */}
-                          <div className="flex items-center justify-between border-t border-slate-100 pt-3">
-                            <div className={cn(
-                              "flex items-center gap-1.5 rounded-md px-2 py-1 text-xs font-medium",
-                              card.dueDate && new Date(card.dueDate) < new Date() && !isDone
-                                ? "bg-rose-50 text-rose-600"
-                                : "bg-slate-100 text-slate-600"
-                            )}>
-                              <CalendarClock className="size-3" />
-                              {card.dueDate
-                                ? new Date(card.dueDate).toLocaleDateString("id-ID", { day: "numeric", month: "short" })
-                                : "No due date"}
-                            </div>
-                            <div className="flex items-center gap-2">
-                              <button
-                                type="button"
-                                data-no-nav="true"
-                                className="flex items-center gap-1 rounded-md px-2 py-1 text-xs text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-700"
-                                onClick={(event) => {
-                                  event.preventDefault();
-                                  event.stopPropagation();
-                                  if (card.taskId) {
-                                    setActiveTaskId(card.taskId);
-                                    setCommentsOpen(true);
-                                  }
-                                }}
-                              >
-                                <MessageSquare className="size-3" />
-                                <span>{commentsList.length > 0 && activeTaskId === card.taskId ? commentsList.length : card.comments}</span>
-                              </button>
-                              <button
-                                type="button"
-                                data-no-nav="true"
-                                className="flex items-center gap-1 rounded-md px-2 py-1 text-xs text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-700"
-                                onClick={(event) => {
-                                  event.preventDefault();
-                                  event.stopPropagation();
-                                  if (card.taskId) {
-                                    setActiveTaskId(card.taskId);
-                                    setFilesOpen(true);
-                                  }
-                                }}
-                              >
-                                <FileText className="size-3" />
-                                <span>{filesList.length > 0 && activeTaskId === card.taskId ? filesList.length : card.files}</span>
-                              </button>
+                                  <FileText className="size-3" />
+                                  <span>{filesList.length > 0 && activeTaskId === card.taskId ? filesList.length : card.files}</span>
+                                </button>
+                              </div>
                             </div>
                           </div>
-                        </div>
-                      );
-                    })}
-                </div>
-              </section>
-            ))}
-          </div>
-        </div>
-      )
-      }
-
-      <Dialog open={commentsOpen} onOpenChange={setCommentsOpen}>
-        <DialogContent className="max-w-lg rounded-2xl">
-          <DialogHeader>
-            <DialogTitle className="text-xl font-semibold text-slate-900">Comments</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-4">
-            <div className="space-y-3">
-              {commentsList.map((comment) => (
-                <div key={comment.id} className="rounded-xl border border-slate-200 p-3">
-                  <p className="text-sm font-semibold text-slate-900">{comment.author}</p>
-                  <p className="text-sm text-slate-600">{comment.text}</p>
-                  <p className="text-xs text-slate-400">{comment.time}</p>
-                </div>
-              ))}
-            </div>
-            <div className="space-y-2">
-              <label className="text-sm font-semibold text-slate-800" htmlFor="commentInput">
-                Chat
-              </label>
-              <textarea
-                id="commentInput"
-                value={newComment}
-                onChange={(event) => setNewComment(event.target.value)}
-                className="min-h-[100px] w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 shadow-sm outline-none focus:border-indigo-500 focus:ring-4 focus:ring-indigo-100"
-                placeholder="Tulis komentar..."
-              />
-              <div className="flex justify-end">
-                <Button
-                  className="bg-[#256eff] text-white hover:bg-[#1c55c7]"
-                  disabled={!newComment.trim() || !activeTaskId || isUploading}
-                  onClick={async () => {
-                    if (!newComment.trim() || !activeTaskId) return;
-                    setIsUploading(true);
-
-                    try {
-                      const res = await fetch(`/api/project-tasks/${activeTaskId}/comments`, {
-                        method: "POST",
-                        headers: { "Content-Type": "application/json" },
-                        body: JSON.stringify({ text: newComment }),
-                      });
-
-                      const body = await res.json();
-
-                      if (res.ok) {
-                        const newCommentId = body.data.id;
-                        setCommentsList((prev) => [
-                          {
-                            id: newCommentId,
-                            author: body.data.author,
-                            text: body.data.text,
-                            time: "Just now",
-                          },
-                          ...prev,
-                        ]);
-                        setNewComment("");
-                      } else {
-                        console.error("Failed to submit comment:", body);
-                        alert(body.message || "Failed to send comment");
-                      }
-                    } catch (err) {
-                      console.error("Error submitting comment:", err);
-                      alert("A system error occurred while sending the comment");
-                    } finally {
-                      setIsUploading(false);
-                    }
-                  }}
-                >
-                  {isUploading ? "Sending..." : "Send"}
-                </Button>
-              </div>
-            </div>
-          </div>
-        </DialogContent>
-      </Dialog>
-
-      <Dialog open={filesOpen} onOpenChange={setFilesOpen}>
-        <DialogContent className="max-w-lg rounded-2xl">
-          <DialogHeader>
-            <DialogTitle className="text-xl font-semibold text-slate-900">Files</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-4">
-            <div className="space-y-3">
-              {filesList.map((file) => (
-                <div
-                  key={file.id}
-                  className="flex items-center justify-between rounded-xl border border-slate-200 p-3 text-sm text-slate-700"
-                >
-                  <div className="space-y-1">
-                    <p className="font-semibold text-slate-900">{file.name}</p>
-                    <p className="text-xs text-slate-400">{file.size}</p>
+                        );
+                      })}
                   </div>
-                  {file.url ? (
-                    <a
-                      href={file.url}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="text-sm font-semibold text-indigo-600 hover:underline"
-                    >
-                      View
-                    </a>
-                  ) : (
-                    <span className="text-xs text-slate-400">No preview</span>
-                  )}
-                </div>
-              ))}
-            </div>
-            <div className="space-y-2">
-              <label className="text-sm font-semibold text-slate-800" htmlFor="fileUpload">
-                Submit Files
-              </label>
-              <Input
-                id="fileUpload"
-                type="file"
-                onChange={(event) => setFileToAdd(event.target.files?.[0] ?? null)}
-              />
-              <div className="flex justify-end">
-                <Button
-                  className="bg-[#256eff] text-white hover:bg-[#1c55c7]"
-                  disabled={!fileToAdd || isUploading || !activeTaskId}
-                  onClick={async () => {
-                    if (!fileToAdd || !activeTaskId) return;
-                    setIsUploading(true);
-
-                    try {
-                      const reader = new FileReader();
-                      reader.readAsDataURL(fileToAdd);
-                      reader.onload = async () => {
-                        const base64Content = reader.result;
-                        const res = await fetch(`/api/project-tasks/${activeTaskId}/files`, {
-                          method: "POST",
-                          headers: { "Content-Type": "application/json" },
-                          body: JSON.stringify({
-                            name: fileToAdd.name,
-                            size: fileToAdd.size,
-                            type: fileToAdd.type,
-                            data: base64Content,
-                          }),
-                        });
-
-                        if (res.ok) {
-                          const body = await res.json();
-                          setFilesList((prev) => [
-                            {
-                              id: body.data.id,
-                              name: body.data.name,
-                              size: `${Math.round(body.data.size / 1024)} KB`,
-                              url: `/api/files?id=${body.data.id}`,
-                            },
-                            ...prev,
-                          ]);
-                          setFileToAdd(null);
-                        } else {
-                          alert("Upload failed");
-                        }
-                        setIsUploading(false);
-                      };
-                    } catch (err) {
-                      alert("Error uploading file");
-                      setIsUploading(false);
-                    }
-                  }}
-                >
-                  {isUploading ? "Uploading..." : "Submit"}
-                </Button>
-              </div>
-            </div>
+                </section>
+              );
+            })}
           </div>
-        </DialogContent>
-      </Dialog>
 
-      <Dialog open={addTaskOpen} onOpenChange={setAddTaskOpen}>
-        <DialogContent className="max-w-3xl rounded-2xl">
-          <DialogHeader>
-            <DialogTitle className="text-xl font-semibold text-slate-900">Add Task</DialogTitle>
-          </DialogHeader>
-          <form
-            className="space-y-4"
-            onSubmit={(event) => {
-              event.preventDefault();
-              if (!taskName.trim()) return;
-              const stageId = stageOrder.find(
-                (stageKey) => stageTitleMap[stageKey] === addTaskStage
-              );
-              if (!stageId) return;
-              fetch("/api/project-tasks", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({
-                  projectId,
-                  stageId,
-                  title: taskName.trim(),
-                  description: taskDescription.trim(),
-                  priority:
-                    taskPriority === "High" ||
-                      taskPriority === "Medium" ||
-                      taskPriority === "Low"
-                      ? (taskPriority as ColumnCard["priority"])
-                      : "Medium",
-                  dueDate: taskDueDate.trim() || null,
-                }),
-              })
-                .then((res) => {
-                  if (!res.ok) return;
-                  return refreshProjectData();
-                })
-                .finally(() => {
-                  setAddTaskOpen(false);
-                });
-            }}
-          >
-            <div className="space-y-2">
-              <label className="text-sm font-semibold text-slate-800" htmlFor="taskName">
-                Task Name
-              </label>
-              <Input
-                id="taskName"
-                placeholder="Redesign Project Dashboard"
-                value={taskName}
-                onChange={(event) => setTaskName(event.target.value)}
-              />
-            </div>
-            <div className="grid gap-4 md:grid-cols-3">
-              <div className="space-y-2">
-                <label className="text-sm font-semibold text-slate-800" htmlFor="taskPriority">
-                  Priority
-                </label>
-                <select
-                  id="taskPriority"
-                  className="h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-700"
-                  value={taskPriority}
-                  onChange={(event) => setTaskPriority(event.target.value)}
-                >
-                  <option disabled>Select Priority</option>
-                  <option>High</option>
-                  <option>Medium</option>
-                  <option>Low</option>
-                </select>
-              </div>
-              <div className="space-y-2">
-                <label className="text-sm font-semibold text-slate-800" htmlFor="taskDue">
-                  Due Date
-                </label>
-                <Input
-                  id="taskDue"
-                  type="date"
-                  value={taskDueDate}
-                  onChange={(event) => setTaskDueDate(event.target.value)}
-                />
-              </div>
-              <div className="space-y-2">
-                <label className="text-sm font-semibold text-slate-800" htmlFor="taskStage">
-                  Stage
-                </label>
-                <Input id="taskStage" value={addTaskStage} readOnly className="bg-slate-50" />
-              </div>
-            </div>
 
-            <div className="space-y-2">
-              <label className="text-sm font-semibold text-slate-800" htmlFor="taskDesc">
-                Description
-              </label>
-              <textarea
-                id="taskDesc"
-                className="min-h-[140px] w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 shadow-sm outline-none focus:border-indigo-500 focus:ring-4 focus:ring-indigo-100"
-                placeholder="Redesign Project Dashboard"
-                value={taskDescription}
-                onChange={(event) => setTaskDescription(event.target.value)}
-              />
-            </div>
-            <div className="flex items-center justify-end gap-3 pt-2">
-              <Button
-                type="button"
-                variant="outline"
-                className="border-rose-200 text-rose-600 hover:bg-rose-50"
-                onClick={() => setAddTaskOpen(false)}
-              >
-                Cancel
-              </Button>
-              <Button className="bg-[#256eff] text-white hover:bg-[#1c55c7]" type="submit">
-                Add Task
-              </Button>
-            </div>
-          </form>
-        </DialogContent>
-      </Dialog>
+          <Dialog open={commentsOpen} onOpenChange={setCommentsOpen}>
+            <DialogContent className="max-w-lg rounded-2xl">
+              <DialogHeader>
+                <DialogTitle className="text-xl font-semibold text-slate-900">Comments</DialogTitle>
+              </DialogHeader>
+              <div className="space-y-4">
+                <div className="space-y-3">
+                  {commentsList.map((comment) => {
+                    const isMe = currentUserName && comment.author === currentUserName;
+                    return (
+                      <div
+                        key={comment.id}
+                        className={cn(
+                          "flex flex-col gap-1 max-w-[85%]",
+                          isMe ? "ml-auto items-end" : "mr-auto items-start"
+                        )}
+                      >
+                        <div className={cn(
+                          "rounded-2xl px-4 py-2 text-sm shadow-sm",
+                          isMe
+                            ? "bg-blue-600 text-white rounded-tr-blue" // Blue for me
+                            : "bg-white border border-slate-100 text-slate-900 rounded-tl-blue"
+                        )}>
+                          {comment.text}
+                        </div>
+                        <div className="flex items-center gap-1 text-[10px] text-slate-400">
+                          {!isMe && <span className="font-medium">{comment.author}</span>}
+                          <span>{comment.time}</span>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+                <div className="space-y-2">
+                  <label className="text-sm font-semibold text-slate-800" htmlFor="commentInput">
+                    Chat
+                  </label>
+                  <textarea
+                    id="commentInput"
+                    value={newComment}
+                    onChange={(event) => setNewComment(event.target.value)}
+                    className="min-h-[100px] w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 shadow-sm outline-none focus:border-indigo-500 focus:ring-4 focus:ring-indigo-100"
+                    placeholder="Tulis komentar..."
+                  />
+                  <div className="flex justify-end">
+                    <Button
+                      className="bg-[#256eff] text-white hover:bg-[#1c55c7]"
+                      disabled={!newComment.trim() || !activeTaskId || isUploading}
+                      onClick={async () => {
+                        if (!newComment.trim() || !activeTaskId) return;
+                        setIsUploading(true);
 
-      <Dialog open={editTaskOpen} onOpenChange={setEditTaskOpen}>
-        <DialogContent className="max-w-xl rounded-2xl">
-          <DialogHeader>
-            <DialogTitle className="text-xl font-semibold text-slate-900">Edit Task</DialogTitle>
-          </DialogHeader>
-          <form
-            className="space-y-4"
-            onSubmit={(event) => {
-              event.preventDefault();
-              if (!editTaskId || !editTaskName.trim()) return;
-              updateColumns((source) =>
-                source.map((column) => ({
-                  ...column,
-                  cards: column.cards.map((card) =>
-                    card.id === editTaskId
-                      ? {
-                        ...card,
-                        title: editTaskName.trim(),
-                        description: editTaskDescription.trim(),
-                        priority: editTaskPriority ?? "Medium",
-                        dueDate: editTaskDueDate || undefined,
-                      }
-                      : card
-                  ),
-                }))
-              );
-              if (editTaskStageId) {
-                const target = columns
-                  ?.find((column) => column.id === editTaskStageId)
-                  ?.cards.find((card) => card.id === editTaskId);
-                if (target?.taskId) {
-                  fetch(`/api/project-tasks/${target.taskId}`, {
-                    method: "PATCH",
+                        try {
+                          const res = await fetch(`/api/project-tasks/${activeTaskId}/comments`, {
+                            method: "POST",
+                            headers: { "Content-Type": "application/json" },
+                            body: JSON.stringify({ text: newComment }),
+                          });
+
+                          const body = await res.json();
+
+                          if (res.ok) {
+                            const newCommentId = body.data.id;
+                            setCommentsList((prev) => [
+                              ...prev,
+                              {
+                                id: newCommentId,
+                                author: body.data.author,
+                                text: body.data.text,
+                                time: "Just now",
+                              },
+                            ]);
+                            setNewComment("");
+                          } else {
+                            console.error("Failed to submit comment:", body);
+                            alert(body.message || "Failed to send comment");
+                          }
+                        } catch (err) {
+                          console.error("Error submitting comment:", err);
+                          alert("A system error occurred while sending the comment");
+                        } finally {
+                          setIsUploading(false);
+                        }
+                      }}
+                    >
+                      {isUploading ? "Sending..." : "Send"}
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            </DialogContent>
+          </Dialog>
+
+          <Dialog open={filesOpen} onOpenChange={setFilesOpen}>
+            <DialogContent className="max-w-lg rounded-2xl">
+              <DialogHeader>
+                <DialogTitle className="text-xl font-semibold text-slate-900">Files</DialogTitle>
+              </DialogHeader>
+              <div className="space-y-4">
+                <div className="space-y-3">
+                  {filesList.map((file) => (
+                    <div
+                      key={file.id}
+                      className="flex items-center justify-between rounded-xl border border-slate-200 p-3 text-sm text-slate-700"
+                    >
+                      <div className="space-y-1">
+                        <p className="font-semibold text-slate-900">{file.name}</p>
+                        <p className="text-xs text-slate-400">{file.size}</p>
+                      </div>
+                      {file.url ? (
+                        <a
+                          href={file.url}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="text-sm font-semibold text-indigo-600 hover:underline"
+                        >
+                          View
+                        </a>
+                      ) : (
+                        <span className="text-xs text-slate-400">No preview</span>
+                      )}
+                    </div>
+                  ))}
+                </div>
+                <div className="space-y-2">
+                  <label className="text-sm font-semibold text-slate-800" htmlFor="fileUpload">
+                    Submit Files
+                  </label>
+                  <Input
+                    id="fileUpload"
+                    type="file"
+                    onChange={(event) => setFileToAdd(event.target.files?.[0] ?? null)}
+                  />
+                  <div className="flex justify-end">
+                    <Button
+                      className="bg-[#256eff] text-white hover:bg-[#1c55c7]"
+                      disabled={!fileToAdd || isUploading || !activeTaskId}
+                      onClick={async () => {
+                        if (!fileToAdd || !activeTaskId) return;
+                        setIsUploading(true);
+
+                        try {
+                          const reader = new FileReader();
+                          reader.readAsDataURL(fileToAdd);
+                          reader.onload = async () => {
+                            const base64Content = reader.result;
+                            const res = await fetch(`/api/project-tasks/${activeTaskId}/files`, {
+                              method: "POST",
+                              headers: { "Content-Type": "application/json" },
+                              body: JSON.stringify({
+                                name: fileToAdd.name,
+                                size: fileToAdd.size,
+                                type: fileToAdd.type,
+                                data: base64Content,
+                              }),
+                            });
+
+                            if (res.ok) {
+                              const body = await res.json();
+                              setFilesList((prev) => [
+                                {
+                                  id: body.data.id,
+                                  name: body.data.name,
+                                  size: `${Math.round(body.data.size / 1024)} KB`,
+                                  url: `/api/files?id=${body.data.id}`,
+                                },
+                                ...prev,
+                              ]);
+                              setFileToAdd(null);
+                            } else {
+                              alert("Upload failed");
+                            }
+                            setIsUploading(false);
+                          };
+                        } catch (err) {
+                          alert("Error uploading file");
+                          setIsUploading(false);
+                        }
+                      }}
+                    >
+                      {isUploading ? "Uploading..." : "Submit"}
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            </DialogContent>
+          </Dialog>
+
+          <Dialog open={addTaskOpen} onOpenChange={setAddTaskOpen}>
+            <DialogContent className="max-w-3xl rounded-2xl">
+              <DialogHeader>
+                <DialogTitle className="text-xl font-semibold text-slate-900">Add Task</DialogTitle>
+              </DialogHeader>
+              <form
+                className="space-y-4"
+                onSubmit={(event) => {
+                  event.preventDefault();
+                  if (!taskName.trim()) return;
+                  const stageId = stageOrder.find(
+                    (stageKey) => stageTitleMap[stageKey] === addTaskStage
+                  );
+                  if (!stageId) return;
+                  fetch("/api/project-tasks", {
+                    method: "POST",
                     headers: { "Content-Type": "application/json" },
                     body: JSON.stringify({
-                      title: editTaskName.trim(),
-                      description: editTaskDescription.trim(),
-                      priority: editTaskPriority ?? "Medium",
-                      due_date: editTaskDueDate || null,
+                      projectId,
+                      stageId,
+                      title: taskName.trim(),
+                      description: taskDescription.trim(),
+                      priority:
+                        taskPriority === "High" ||
+                          taskPriority === "Medium" ||
+                          taskPriority === "Low"
+                          ? (taskPriority as ColumnCard["priority"])
+                          : "Medium",
+                      dueDate: taskDueDate.trim() || null,
                     }),
                   })
                     .then((res) => {
                       if (!res.ok) return;
-                      return refreshProjectData();
+                      return refreshProjectData({ silent: true });
                     })
-                    .catch(() => undefined);
-                }
-              }
-              setEditTaskOpen(false);
-            }}
-          >
-            <div className="space-y-2">
-              <label className="text-sm font-semibold text-slate-800" htmlFor="editTaskName">
-                Task Name
-              </label>
-              <Input
-                id="editTaskName"
-                placeholder="Redesign Project Dashboard"
-                value={editTaskName}
-                onChange={(event) => setEditTaskName(event.target.value)}
-              />
-            </div>
-            <div className="space-y-2">
-              <label className="text-sm font-semibold text-slate-800" htmlFor="editTaskPriority">
-                Priority
-              </label>
-              <select
-                id="editTaskPriority"
-                className="h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-700"
-                value={editTaskPriority}
-                onChange={(event) =>
-                  setEditTaskPriority(event.target.value as ColumnCard["priority"])
-                }
+                    .finally(() => {
+                      setAddTaskOpen(false);
+                    });
+                }}
               >
-                <option>High</option>
-                <option>Medium</option>
-                <option>Low</option>
-              </select>
-            </div>
-            <div className="space-y-2">
-              <label className="text-sm font-semibold text-slate-800" htmlFor="editTaskDueDate">
-                Due Date
-              </label>
-              <Input
-                id="editTaskDueDate"
-                type="date"
-                value={editTaskDueDate}
-                onChange={(event) => setEditTaskDueDate(event.target.value)}
-              />
-            </div>
-            <div className="space-y-2">
-              <label className="text-sm font-semibold text-slate-800" htmlFor="editTaskDesc">
-                Description
-              </label>
-              <textarea
-                id="editTaskDesc"
-                className="min-h-[120px] w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 shadow-sm outline-none focus:border-indigo-500 focus:ring-4 focus:ring-indigo-100"
-                placeholder="Redesign Project Dashboard"
-                value={editTaskDescription}
-                onChange={(event) => setEditTaskDescription(event.target.value)}
-              />
-            </div>
-            <div className="flex items-center justify-end gap-3 pt-2">
-              <Button
-                type="button"
-                variant="outline"
-                className="border-rose-200 text-rose-600 hover:bg-rose-50"
-                onClick={() => setEditTaskOpen(false)}
+                <div className="space-y-2">
+                  <label className="text-sm font-semibold text-slate-800" htmlFor="taskName">
+                    Task Name
+                  </label>
+                  <Input
+                    id="taskName"
+                    placeholder="Redesign Project Dashboard"
+                    value={taskName}
+                    onChange={(event) => setTaskName(event.target.value)}
+                  />
+                </div>
+                <div className="grid gap-4 md:grid-cols-3">
+                  <div className="space-y-2">
+                    <label className="text-sm font-semibold text-slate-800" htmlFor="taskPriority">
+                      Priority
+                    </label>
+                    <select
+                      id="taskPriority"
+                      className="h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-700"
+                      value={taskPriority}
+                      onChange={(event) => setTaskPriority(event.target.value)}
+                    >
+                      <option disabled>Select Priority</option>
+                      <option>High</option>
+                      <option>Medium</option>
+                      <option>Low</option>
+                    </select>
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-sm font-semibold text-slate-800" htmlFor="taskDue">
+                      Due Date
+                    </label>
+                    <Input
+                      id="taskDue"
+                      type="date"
+                      value={taskDueDate}
+                      onChange={(event) => setTaskDueDate(event.target.value)}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-sm font-semibold text-slate-800" htmlFor="taskStage">
+                      Stage
+                    </label>
+                    <Input id="taskStage" value={addTaskStage} readOnly className="bg-slate-50" />
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <label className="text-sm font-semibold text-slate-800" htmlFor="taskDesc">
+                    Description
+                  </label>
+                  <textarea
+                    id="taskDesc"
+                    className="min-h-[140px] w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 shadow-sm outline-none focus:border-indigo-500 focus:ring-4 focus:ring-indigo-100"
+                    placeholder="Redesign Project Dashboard"
+                    value={taskDescription}
+                    onChange={(event) => setTaskDescription(event.target.value)}
+                  />
+                </div>
+                <div className="flex items-center justify-end gap-3 pt-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="border-rose-200 text-rose-600 hover:bg-rose-50"
+                    onClick={() => setAddTaskOpen(false)}
+                  >
+                    Cancel
+                  </Button>
+                  <Button className="bg-[#256eff] text-white hover:bg-[#1c55c7]" type="submit">
+                    Add Task
+                  </Button>
+                </div>
+              </form>
+            </DialogContent>
+          </Dialog>
+
+          <Dialog open={editTaskOpen} onOpenChange={setEditTaskOpen}>
+            <DialogContent className="max-w-xl rounded-2xl">
+              <DialogHeader>
+                <DialogTitle className="text-xl font-semibold text-slate-900">Edit Task</DialogTitle>
+              </DialogHeader>
+              <form
+                className="space-y-4"
+                onSubmit={(event) => {
+                  event.preventDefault();
+                  if (!editTaskId || !editTaskName.trim()) return;
+                  updateColumns((source) =>
+                    source.map((column) => ({
+                      ...column,
+                      cards: column.cards.map((card) =>
+                        card.id === editTaskId
+                          ? {
+                            ...card,
+                            title: editTaskName.trim(),
+                            description: editTaskDescription.trim(),
+                            priority: editTaskPriority ?? "Medium",
+                            dueDate: editTaskDueDate || undefined,
+                          }
+                          : card
+                      ),
+                    }))
+                  );
+                  if (editTaskStageId) {
+                    const target = columns
+                      ?.find((column) => column.id === editTaskStageId)
+                      ?.cards.find((card) => card.id === editTaskId);
+                    if (target?.taskId) {
+                      fetch(`/api/project-tasks/${target.taskId}`, {
+                        method: "PATCH",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({
+                          title: editTaskName.trim(),
+                          description: editTaskDescription.trim(),
+                          priority: editTaskPriority ?? "Medium",
+                          due_date: editTaskDueDate || null,
+                        }),
+                      })
+                        .then((res) => {
+                          if (!res.ok) return;
+                          return refreshProjectData({ silent: true });
+                        })
+                        .catch(() => undefined);
+                    }
+                  }
+                  setEditTaskOpen(false);
+                }}
               >
-                Cancel
-              </Button>
-              <Button className="bg-[#256eff] text-white hover:bg-[#1c55c7]" type="submit">
-                Save Changes
-              </Button>
-            </div>
-          </form>
-        </DialogContent>
-      </Dialog>
+                <div className="space-y-2">
+                  <label className="text-sm font-semibold text-slate-800" htmlFor="editTaskName">
+                    Task Name
+                  </label>
+                  <Input
+                    id="editTaskName"
+                    placeholder="Redesign Project Dashboard"
+                    value={editTaskName}
+                    onChange={(event) => setEditTaskName(event.target.value)}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <label className="text-sm font-semibold text-slate-800" htmlFor="editTaskPriority">
+                    Priority
+                  </label>
+                  <select
+                    id="editTaskPriority"
+                    className="h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-700"
+                    value={editTaskPriority}
+                    onChange={(event) =>
+                      setEditTaskPriority(event.target.value as ColumnCard["priority"])
+                    }
+                  >
+                    <option>High</option>
+                    <option>Medium</option>
+                    <option>Low</option>
+                  </select>
+                </div>
+                <div className="space-y-2">
+                  <label className="text-sm font-semibold text-slate-800" htmlFor="editTaskDueDate">
+                    Due Date
+                  </label>
+                  <Input
+                    id="editTaskDueDate"
+                    type="date"
+                    value={editTaskDueDate}
+                    onChange={(event) => setEditTaskDueDate(event.target.value)}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <label className="text-sm font-semibold text-slate-800" htmlFor="editTaskDesc">
+                    Description
+                  </label>
+                  <textarea
+                    id="editTaskDesc"
+                    className="min-h-[120px] w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 shadow-sm outline-none focus:border-indigo-500 focus:ring-4 focus:ring-indigo-100"
+                    placeholder="Redesign Project Dashboard"
+                    value={editTaskDescription}
+                    onChange={(event) => setEditTaskDescription(event.target.value)}
+                  />
+                </div>
+                <div className="flex items-center justify-end gap-3 pt-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="border-rose-200 text-rose-600 hover:bg-rose-50"
+                    onClick={() => setEditTaskOpen(false)}
+                  >
+                    Cancel
+                  </Button>
+                  <Button className="bg-[#256eff] text-white hover:bg-[#1c55c7]" type="submit">
+                    Save Changes
+                  </Button>
+                </div>
+              </form>
+            </DialogContent>
+          </Dialog>
+        </div>
+      )
+      }
     </div >
   );
 }

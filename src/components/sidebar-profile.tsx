@@ -43,6 +43,11 @@ export function SidebarProfile({ profile }: SidebarProfileProps) {
     setSigningOut(false);
 
     if (signOutError) {
+      // If the session is missing, we're effectively logged out, so proceed to login
+      if (signOutError.message.includes("Auth session missing")) {
+        router.push("/login");
+        return;
+      }
       setError(signOutError.message);
       return;
     }

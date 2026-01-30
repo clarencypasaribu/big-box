@@ -61,39 +61,47 @@ export async function GET(request: Request) {
 
     const taskIds = tasks.map((t) => t.id);
 
-    // Fetch deliverables
-    const { data: deliverables, error: delError } = await supabase
-      .from("task_deliverables")
-      .select("*")
+    // Fetched tasks...
+    // const taskIds already defined above
+    const creatorIds = Array.from(new Set(tasks.map((t) => t.created_by).filter(Boolean))) as string[];
+
+    // Fetch comments count
+    const { data: comments, error: commentsError } = await supabase
+      .from("task_comments")
+      .select("task_id")
       .in("task_id", taskIds);
 
-    console.log("[project-tasks] deliverables count:", deliverables?.length, "error:", delError);
-    if (deliverables && deliverables.length > 0) {
-      console.log("[project-tasks] sample deliverable:", deliverables[0]);
-    }
-
-    // Fetch files for these deliverables
-    const deliverableIds = deliverables?.map((d) => d.id) ?? [];
-    console.log("[project-tasks] deliverableIds:", deliverableIds);
-
-    const { data: files, error: filesError } = await supabase
+    // Fetch files count (entity_type = 'task')
+    const { data: directFiles, error: filesError } = await supabase
       .from("files")
-      .select("id,name,size,entity_id,entity_type")
-      .in("entity_id", deliverableIds)
-      .eq("entity_type", "task_deliverable");
+      .select("entity_id")
+      .eq("entity_type", "task")
+      .in("entity_id", taskIds);
 
-    console.log("[project-tasks] files count:", files?.length, "error:", filesError);
+    // Fetch creators
+    let creatorMap: Record<string, string> = {};
+    if (creatorIds.length > 0) {
+      const { data: profiles } = await supabase
+        .from("profiles")
+        .select("id, full_name")
+        .in("id", creatorIds);
+
+      profiles?.forEach((p) => {
+        creatorMap[p.id] = p.full_name || "Unknown";
+      });
+    }
 
     // Map data back to tasks
     const tasksWithData = tasks.map((task) => {
-      const taskDeliverables = deliverables?.filter((d) => d.task_id === task.id) ?? [];
-      const dIds = taskDeliverables.map((d) => d.id);
-      const taskFiles = files?.filter((f) => dIds.includes(f.entity_id)) ?? [];
+      const taskCommentsCount = comments?.filter((c) => c.task_id === task.id).length ?? 0;
+      const taskFilesCount = directFiles?.filter((f) => f.entity_id === task.id).length ?? 0;
+      const creatorName = task.created_by ? creatorMap[task.created_by] : null;
 
       return {
         ...task,
-        deliverables: taskDeliverables,
-        files: taskFiles,
+        comments_count: taskCommentsCount,
+        files_count: taskFilesCount,
+        created_by_name: creatorName,
       };
     });
 
@@ -142,6 +150,7 @@ export async function POST(request: Request) {
       priority: body.priority ? String(body.priority) : null,
       due_date: body.dueDate ? String(body.dueDate) : null,
       assignee: assigneeName,
+      created_by: currentUserId,
       status: "Not Started",
     };
     const { data, error } = await supabase

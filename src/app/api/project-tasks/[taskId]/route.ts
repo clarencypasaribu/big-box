@@ -20,6 +20,7 @@ export async function PATCH(request: Request, context: RouteContext) {
     if (body.description !== undefined) payload.description = String(body.description);
     if (body.priority !== undefined) payload.priority = String(body.priority);
     if (body.status !== undefined) payload.status = String(body.status);
+    if (body.due_date !== undefined) payload.due_date = body.due_date;
 
     const supabase = await createSupabaseServiceClient({ allowWrite: true });
     const { data, error } = await supabase
