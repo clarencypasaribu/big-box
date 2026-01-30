@@ -70,10 +70,17 @@ async function loadDashboardStats(): Promise<DashboardData> {
     const now = new Date();
 
     // Build approval/blocker/task maps
-    const approvalsByProject = (approvals ?? []).reduce<Record<string, any[]>>((acc, row) => {
-      const list = acc[row.project_id] ?? [];
-      list.push(row);
-      acc[row.project_id] = list;
+    const approvalsByProject = (approvals ?? []).reduce<Record<string, Record<string, { status: string; created_at?: string }>>>((acc, row) => {
+      const key = row.project_id;
+      const stageId = normalizeStageId(row.stage_id);
+      const status = (row.status ?? "pending").toString().toLowerCase();
+      const created_at = row.created_at as string | undefined;
+
+      acc[key] = acc[key] ?? {};
+      const existing = acc[key][stageId];
+      if (!existing || (created_at && existing.created_at && new Date(created_at) > new Date(existing.created_at))) {
+        acc[key][stageId] = { status, created_at };
+      }
       return acc;
     }, {});
 
@@ -132,15 +139,17 @@ async function loadDashboardStats(): Promise<DashboardData> {
     }[] = [];
 
     (projects ?? []).forEach((project) => {
-      const stageApprovals = approvalsByProject[project.id] ?? [];
+      const stageApprovals = approvalsByProject[project.id] ?? {};
       const approvalsMap = new Map<string, string>();
-      stageApprovals.forEach((row) => approvalsMap.set(normalizeStageId(row.stage_id), row.status ?? "Pending"));
+      Object.entries(stageApprovals).forEach(([stageId, info]) => {
+        approvalsMap.set(stageId, (info.status ?? "pending").toString().toLowerCase());
+      });
 
       let currentStageId = stageOrder[stageOrder.length - 1];
       let foundPending = false;
       for (const stage of stageOrder) {
         const status = approvalsMap.get(stage);
-        if (status === "Approved") continue;
+        if (status === "approved") continue;
         currentStageId = stage;
         foundPending = true;
         break;

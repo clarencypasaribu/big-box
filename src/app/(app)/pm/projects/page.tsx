@@ -83,17 +83,12 @@ async function loadProjects(): Promise<ProjectRow[]> {
           const completedStages = approvals
             .filter((a) => String(a.status).toLowerCase() === "approved")
             .map((a) => normalizeStageId(a.stage_id));
-          if (completedStages.length) {
-            const maxIndex = completedStages
-              .map((id) => stageProgressOrder.indexOf(id))
-              .reduce((max, idx) => (idx > max ? idx : max), -1);
-            if (maxIndex >= 0) {
-              return Math.min(100, Math.round((maxIndex + 1) * stageWeight));
-            }
-          }
-          // fallback ke progress tersimpan
-          if (typeof row.progress === "number") return row.progress;
-          return 0;
+          if (!completedStages.length) return 0;
+          const maxIndex = completedStages
+            .map((id) => stageProgressOrder.indexOf(id))
+            .reduce((max, idx) => (idx > max ? idx : max), -1);
+          if (maxIndex < 0) return 0;
+          return Math.min(100, Math.round((maxIndex + 1) * stageWeight));
         })(),
         lead: row.lead ?? "Unassigned",
         stageLabel: (() => {
@@ -105,13 +100,8 @@ async function loadProjects(): Promise<ProjectRow[]> {
           });
           let currentStage = pendingStage ?? stageProgressOrder[stageProgressOrder.length - 1];
 
-          // fallback: gunakan progress numeric jika approvals kosong
-          if (!approvals.length && typeof row.progress === "number") {
-            const idx = Math.min(
-              stageProgressOrder.length - 1,
-              Math.max(0, Math.floor((row.progress / 100) * stageProgressOrder.length))
-            );
-            currentStage = stageProgressOrder[idx];
+          if (!approvals.length) {
+            currentStage = stageProgressOrder[0];
           }
 
           return labelMap[currentStage] ?? currentStage;

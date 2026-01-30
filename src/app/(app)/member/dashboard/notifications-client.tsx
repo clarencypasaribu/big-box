@@ -235,34 +235,47 @@ export function NotificationsClient({
         }));
     }, [displayedNotifications, groupByDate]);
 
+    const isPmContext = pathname.startsWith("/pm");
+
     // Helper to adjust links based on role context
     function getAdjustedLink(originalLink?: string) {
         if (!originalLink) return undefined;
 
-        const isMemberContext = !pathname.startsWith("/pm");
         let link = originalLink;
 
-        if (isMemberContext) {
-            // Rewrite PM-specific links to Member equivalents
-            if (link.startsWith("/pm/risks") || link.includes("blocker")) {
-                // Members see blockers on their dashboard
-                return "/member/dashboard";
+        if (isPmContext) {
+            // Normalize any member or generic links into PM routes
+            if (link.startsWith("/member/project/")) {
+                return link.replace("/member/project/", "/pm/projects/");
             }
-            if (link.startsWith("/pm/projects/")) {
-                return link.replace("/pm/projects/", "/member/project/");
+            if (link.startsWith("/member/")) {
+                return "/pm/dashboard";
             }
-            if (link.startsWith("/projects/")) {
-                return link.replace("/projects/", "/member/project/");
+            if (link.startsWith("/projects/") || link.startsWith("/project/")) {
+                return link.replace("/projects/", "/pm/projects/").replace("/project/", "/pm/projects/");
             }
-            if (link.startsWith("/pm")) {
-                // Fallback for other PM links - redirect to member dashboard to avoid 404/403
-                return "/member/dashboard";
+            if (link.startsWith("/dashboard")) {
+                return "/pm/dashboard";
             }
-        } else {
-            // PM Context
-            if (link.startsWith("/projects/")) {
-                return link.replace("/projects/", "/pm/projects/");
+            if (!link.startsWith("/pm")) {
+                // Fallback: route unknown paths to PM dashboard
+                return "/pm/dashboard";
             }
+            return link;
+        }
+
+        // Member context
+        if (link.startsWith("/pm/risks") || link.includes("blocker")) {
+            return "/member/dashboard";
+        }
+        if (link.startsWith("/pm/projects/")) {
+            return link.replace("/pm/projects/", "/member/project/");
+        }
+        if (link.startsWith("/projects/")) {
+            return link.replace("/projects/", "/member/project/");
+        }
+        if (link.startsWith("/pm")) {
+            return "/member/dashboard";
         }
 
         return link;
@@ -380,7 +393,7 @@ export function NotificationsClient({
 
             {showFooterLink && (
                 <Button asChild variant="ghost" className="w-full text-indigo-600 hover:text-indigo-700">
-                    <Link href="/member/notifications">View All Notifications</Link>
+                    <Link href={isPmContext ? "/pm/notifications" : "/member/notifications"}>View All Notifications</Link>
                 </Button>
             )}
         </div>
